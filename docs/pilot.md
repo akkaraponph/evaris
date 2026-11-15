@@ -85,7 +85,9 @@ Lessons from the v0.2.0 pilot with the Claude Code CLI (`claude -p`), version
   files will breach a "workspace only" exclusion rule.
 - `--output-format stream-json --verbose` gives an init event with the model,
   tools, permission mode, version, session ID, skills, plugins and memory paths:
-  enough to fill every `observed` field from evidence.
+  together with the wrapper's recorded budget and start/finish times, enough to
+  fill the `observed` fields from evidence (`loadedInstructions` comes from later
+  tool calls, not the init event).
 - Telling the specialist to read `.evaris-instructions/` does not guarantee it
   does. Under `acceptEdits` the host also ran read-only shell commands such as
   `cat`, and specialists often read the instruction file that way. Decide before
@@ -137,7 +139,9 @@ A tool error (ERROR/UNAVAILABLE) is not an agent failure; report them separately
 A second operator should receive the stores, the reviewer files with their
 recorded hashes, and this runbook. If a command criterion reads files outside the
 oracle (scripts, hidden tests), verify their recorded SHA-256 values first (for
-example `shasum -a 256 -c MANIFEST`) and stop on mismatch. Then re-run `evaluate` and `report` and
+example `shasum -a 256 -c MANIFEST`) and stop on mismatch. An oracle that names
+reviewer files by absolute path does not relocate: a copied store still grades with the files at that path, so
+verify the hashes there. Then re-run `evaluate` and `report` and
 compare per-criterion outcomes (IDs differ because every evaluation is new).
 Publish only a manually reviewed summary: no oracle, hidden tests, transcripts,
 secrets or local paths. A handful of trials supports descriptive statements only,

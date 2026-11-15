@@ -2,7 +2,7 @@
 
 ## Supported platforms
 
-| Item | Supported in 0.1.x |
+| Item | Supported in 0.2.x |
 | --- | --- |
 | Go toolchain | 1.27.4 or newer (minimum in `go.mod`) |
 | Operating systems | Linux and macOS, amd64 and arm64 |
@@ -43,7 +43,7 @@ From a clean checkout of the release tag, with Go 1.27.4:
 
 ```sh
 git status --porcelain   # must print nothing
-VERSION=v0.1.0
+VERSION=v0.2.0
 mkdir -p dist
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
   GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 \
@@ -82,13 +82,15 @@ or required CI check fails.
 There are no services or database migrations to deploy. Keep existing evidence
 stores intact when replacing a binary. To recover from a later release, reinstall
 the previous supported binary and retain stores written with newer schemas
-separately; older binaries may reject those records. The first release has no
-earlier Evaris release to roll back to. Commands and guards can have operator
+separately; older binaries may reject those records. 0.1.0 is the
+earlier release to roll back to. Commands and guards can have operator
 controlled side effects that replacing the Evaris binary cannot undo.
 
 Known limitations to state in release notes: bundled runs are synthetic
 controls; the v0.2.0 process pilot ran real external agent sessions with
 observed host metadata, but its comparisons were NOT_COMPARABLE and its outcomes
-come from 3 trials with one host and model, so it supports no agent or
-instruction-effectiveness claim; commands and Invaris guards are not
+come from 3 trials with one host and model, with operator-attested host metadata
+and no semantic review, so it supports no agent or
+instruction-effectiveness claim; its grading was reproduced by an independent
+AI operator session, not by a second person; commands and Invaris guards are not
 sandboxed; and only the pinned Invaris revision is supported.

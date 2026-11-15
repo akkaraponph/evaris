@@ -2,7 +2,7 @@
 
 ## Project status
 
-Evaris is in 0.x development. Only the latest 0.1.x release and the default
+Evaris is in 0.x development. Only the latest 0.2.x release and the default
 branch receive security fixes; there is no long-term support line. The CLI
 validates experiments, prepares workspaces, imports external results, grades
 them, writes reports, compares runs, and can call an external Invaris binary.

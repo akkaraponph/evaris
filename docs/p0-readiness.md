@@ -59,7 +59,9 @@ the timeout controls retain their one-second deadlines.
   arms descriptively, but every comparison was NOT_COMPARABLE because the
   preregistered rule counted only one way of reading the instruction file. Its
   results are descriptive only.
-- Independent reproduction of pilot grading by a second human operator.
+- Reproduction of pilot grading by a second person. An independent AI operator
+  session reproduced all 12 pilot evaluations and 3 comparisons from the
+  retained evidence.
 - Compatibility with Invaris revisions other than the pinned one.
 
 Release steps and the support matrix are in [release.md](release.md). Release

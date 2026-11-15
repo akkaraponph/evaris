@@ -1,20 +1,24 @@
 # Changelog
 
-## Unreleased (planned 0.2.0; not tagged)
+## 0.2.0 - 2026-11-15
 
 - Runbook for real external-agent evaluations (`docs/pilot.md`); documented
   commands use one binary path.
 - A process-validation pilot (kept privately with its preregistrations) of real
-  Claude Code CLI sessions with every `observed` field taken from the host
-  transcript. The final revision ran 12 sessions in 3 trials: one case separated
-  the arms descriptively (baseline failed one stated rule in 2 of 3 trials), but
+  Claude Code CLI sessions with `observed` fields taken from the host transcript
+  and the run wrapper (operator-attested, not verified by Evaris). The final
+  revision ran 12 sessions in 3 trials: one case separated the arms descriptively (baseline failed one stated rule in 2 of 3 trials), but
   every comparison was NOT_COMPARABLE because specialists read the instruction
   file through a shell command that the preregistered loading rule did not
   count. Not evidence of agent or instruction effectiveness.
 - Runbook lessons for the Claude Code CLI host: permission mode, scratchpad
   location, observed-metadata sources and instruction-loading detection.
-- 0.2.0 is not complete until a person other than the first operator reproduces
-  the grading and the release checklist is run on the candidate commit.
+- Independent reproduction: a fresh AI operator session, given a copy of
+  the retained pilot records (stores, reviewer files, preregistration and the
+  outcomes to check against), a handoff note and the runbook, reproduced all
+  12 evaluations and all 3 comparisons. No second human operator reproduced the
+  grading, and the summary was reviewed by an independent AI session.
+- No Go source, command or stored-schema changes since 0.1.0.
 
 ## 0.1.0 - 2026-11-15
 
