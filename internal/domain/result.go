@@ -15,10 +15,34 @@ type GraderResult struct {
 	Evidence      []FileRef `json:"evidence"`
 	GraderVersion string    `json:"graderVersion"`
 }
-type Verification struct {
-	Required bool   `json:"required"`
-	Status   string `json:"status"`
+
+// Finding is an external verifier finding. Paths are reported, never followed.
+type Finding struct {
+	PolicyID string `json:"policyId"`
+	RuleID   string `json:"ruleId"`
+	Path     string `json:"path"`
+	Message  string `json:"message"`
 }
+
+// Verification is an external verifier signal kept separate from Evaris grading.
+// Status ACCEPT/REJECT/REFUSE is the validated native decision; ERROR means the
+// tool or its evidence failed; UNAVAILABLE means it was not authorized to run.
+type Verification struct {
+	Required      bool      `json:"required"`
+	Status        string    `json:"status"`
+	SchemaVersion *string   `json:"schemaVersion"`
+	ExitCode      *int      `json:"exitCode"`
+	RunID         *string   `json:"runId"`
+	ConfigDigest  *string   `json:"configDigest"`
+	Executable    *FileRef  `json:"executable"`
+	Evidence      []FileRef `json:"evidence"`
+	Reason        Reason    `json:"reason"`
+	Findings      []Finding `json:"findings"`
+}
+
+// VerificationStatuses are the only valid Verification.Status values.
+var VerificationStatuses = map[string]bool{"NOT_CONFIGURED": true, "ACCEPT": true, "REJECT": true, "REFUSE": true, "ERROR": true, "UNAVAILABLE": true}
+
 type Assessment struct {
 	Execution    ExecutionState
 	AgentOutcome TaskOutcome
@@ -26,10 +50,14 @@ type Assessment struct {
 	Final        AssessmentStatus
 }
 
+// Assess aggregates required gates. A known FAIL (or required verifier REJECT)
+// dominates; otherwise any missing, unavailable, errored or refused required
+// evidence, or pending review, is inconclusive. A verifier ACCEPT never supplies
+// a missing task assertion.
 func Assess(gs []GraderResult, review ReviewStatus, v *Verification) Assessment {
 	a := Assessment{"COMPLETE", "SATISFIED", review, "PASS"}
 	missing := len(gs) == 0
-	failed := false
+	failed, errored, incomplete, canceled := false, false, false, false
 	for _, g := range gs {
 		if g.Required && g.Status == "FAIL" {
 			failed = true
@@ -37,22 +65,29 @@ func Assess(gs []GraderResult, review ReviewStatus, v *Verification) Assessment 
 		if g.Required && g.Status != "PASS" && g.Status != "FAIL" {
 			missing = true
 		}
-		if g.Status == "UNAVAILABLE" && a.Execution == "COMPLETE" {
-			a.Execution = "INCOMPLETE"
-		}
-		if g.Status == "ERROR" && a.Execution != "CANCELED" {
-			a.Execution = "ERROR"
-		}
-		if g.Reason == "CANCELED" {
-			a.Execution = "CANCELED"
+		incomplete = incomplete || g.Status == "UNAVAILABLE"
+		errored = errored || g.Status == "ERROR"
+		canceled = canceled || g.Reason == "CANCELED"
+	}
+	if v != nil {
+		errored = errored || v.Status == "ERROR" || !VerificationStatuses[v.Status]
+		incomplete = incomplete || v.Status == "REFUSE" || v.Status == "UNAVAILABLE"
+		canceled = canceled || v.Reason == "CANCELED"
+		if v.Required {
+			if v.Status == "REJECT" {
+				failed = true
+			} else if v.Status != "ACCEPT" {
+				missing = true
+			}
 		}
 	}
-	if v != nil && v.Required {
-		if v.Status == "REJECT" {
-			failed = true
-		} else if v.Status != "ACCEPT" {
-			missing = true
-		}
+	switch {
+	case canceled:
+		a.Execution = "CANCELED"
+	case errored:
+		a.Execution = "ERROR"
+	case incomplete:
+		a.Execution = "INCOMPLETE"
 	}
 	if missing || review == "PENDING" {
 		a.AgentOutcome = "UNKNOWN"
@@ -105,7 +140,7 @@ type Report struct {
 	EvarisVersion   string        `json:"evarisVersion"`
 	EvaluationIDs   []string      `json:"evaluationIds"`
 	Cases           []CaseSummary `json:"cases"`
-	Comparison      any           `json:"comparison"`
+	Comparison      *Comparison   `json:"comparison"`
 	Evidence        []FileRef     `json:"evidence"`
 	Limitations     []string      `json:"limitations"`
 	Recommendations []string      `json:"recommendations"`

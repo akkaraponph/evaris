@@ -93,3 +93,21 @@ preparation linkage, manifests and stored bytes. Hashes detect changed bytes but
 are not signatures or proof of who ran an agent. Crash leftovers without a marker
 are not accepted; inspect before manually removing only the failed operation's
 owned directories. No automatic deletion of completed workspaces is performed.
+
+## Optional verification and comparison (P1)
+
+Cases may configure an Invaris check; evaluate them with
+`--allow-commands --invaris /abs/invaris`. See [invaris.md](invaris.md).
+Without `--invaris`, a configured verification is recorded as `ERROR`/
+`TOOL_MISSING`, never silently skipped.
+
+After evaluating both arms of one preparation, compare them:
+
+```sh
+.panda-suite/build/evaris compare --left /absolute/path/to/evidence --right /absolute/path/to/evidence --mode arms
+```
+
+For two instruction revisions, prepare and evaluate each revision in its own
+store, then pass both stores with `--mode revisions`. Comparison requires fully
+observed host metadata; null metadata blocks it with explicit reasons. See
+[comparison.md](comparison.md).

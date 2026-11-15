@@ -9,13 +9,13 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
-      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           cache: false
       - name: Format
-        run: test -z "$(gofmt -l cmd internal)"
+        run: test -z "$(gofmt -l cmd internal examples)"
       - run: go build ./...
       - run: go vet ./...
       - run: go test -race ./...
@@ -25,3 +25,36 @@ jobs:
           GOTOOLCHAIN: local
           GOSUMDB: "off"
         run: go test ./internal/acceptance -count=1
+
+  # P1 release gate: real Invaris at the pinned, inspected source revision.
+  # Provisioning (network) is separate from the asserted offline test phase.
+  invaris:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          repository: akkaraponph/invaris
+          ref: ee92f3c00c1b59b2f576bad05569fb6eafb83097
+          path: invaris-src
+          persist-credentials: false
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Provision pinned Invaris (outside the Evaris module)
+        working-directory: invaris-src
+        run: |
+          test "$(git rev-parse HEAD)" = ee92f3c00c1b59b2f576bad05569fb6eafb83097
+          go build -trimpath -o "$RUNNER_TEMP/invaris" ./cmd/invaris
+      - name: Real Invaris contract and P1 integration (offline)
+        env:
+          GOPROXY: "off"
+          GOTOOLCHAIN: local
+          GOSUMDB: "off"
+        run: |
+          export EVARIS_TEST_INVARIS="$RUNNER_TEMP/invaris"
+          go test ./internal/adapters/invaris ./internal/acceptance -run 'TestRealInvaris|TestP1OfflineIntegration' -count=1 -v

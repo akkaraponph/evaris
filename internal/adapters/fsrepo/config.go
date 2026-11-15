@@ -18,6 +18,9 @@ import (
 )
 
 type Repository struct {
+	// CheckHarness validates frozen verifier harness bytes against the supported
+	// integration profile. main wires it; nil skips only the profile check.
+	CheckHarness func([]byte) error
 	beforeCopy   func(string) error
 	beforeCommit func() error
 }
@@ -405,6 +408,11 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 			err = fail("INVALID_CONFIG", "required criterion")
 			return
 		}
+		if v := c.Verification; v != nil {
+			if fc.Harness, err = r.loadHarness(plan, c, fc.Files); err != nil {
+				return
+			}
+		}
 		plan.Cases = append(plan.Cases, fc)
 	}
 	for _, a := range plan.Experiment.Arms {
@@ -426,6 +434,44 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 		}
 	}
 	return
+}
+
+// loadHarness reads a private verifier harness that no task workspace receives.
+func (r Repository) loadHarness(plan application.Plan, c domain.Case, files domain.Manifest) ([]byte, error) {
+	p := filepath.Join(plan.ConfigDir, c.Verification.Harness)
+	if p == plan.ConfigPath || within(plan.OutputRoot, p) {
+		return nil, fail("PATH_UNSAFE", "verification harness")
+	}
+	for _, other := range plan.Experiment.Cases {
+		if within(filepath.Join(plan.ConfigDir, other.Fixture), p) || other.Task == c.Verification.Harness {
+			return nil, fail("PATH_UNSAFE", "verification harness")
+		}
+	}
+	for _, a := range plan.Experiment.Arms {
+		for _, in := range a.Instructions {
+			if in.Path == c.Verification.Harness {
+				return nil, fail("PATH_UNSAFE", "verification harness")
+			}
+		}
+	}
+	for _, ref := range files {
+		if ref.Path == domain.HarnessName {
+			return nil, fail("PATH_UNSAFE", "fixture contains "+domain.HarnessName)
+		}
+	}
+	b, e := readFile(p)
+	if e != nil {
+		return nil, e
+	}
+	if r.CheckHarness != nil {
+		if e = r.CheckHarness(b); e != nil {
+			if _, ok := e.(*domain.Failure); ok {
+				return nil, e
+			}
+			return nil, fail("INVALID_CONFIG", "verification harness")
+		}
+	}
+	return b, nil
 }
 
 func validID(s string) bool {

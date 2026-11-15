@@ -1,0 +1,9 @@
+{
+  "version": "invaris.dev/v1alpha2",
+  "name": "evaris-approved-result",
+  "trustMode": "trusted-local",
+  "networkPolicy": "unrestricted",
+  "policies": [{"id": "approved-result", "allowEmpty": false}],
+  "guards": [{"id": "result-guard", "policyId": "approved-result", "program": "@GUARD@", "args": []}],
+  "gate": {"requiredGuards": ["result-guard"], "requiredProofs": [], "precedence": "refusal-first", "allowWeakEvidence": false}
+}

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/akkaraponph/evaris/internal/domain"
+	"strings"
 	"time"
 )
 
@@ -25,13 +26,9 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 		return out, e
 	}
 	out = domain.Report{SchemaVersion: "evaris.report/v1alpha1", ID: id, CreatedAt: time.Now().UTC(), EvarisVersion: "dev", EvaluationIDs: []string{}, Cases: []domain.CaseSummary{}, Evidence: []domain.FileRef{}, Limitations: []string{"Configured checks do not establish general semantic correctness.", "Host metadata and origin are operator-reported; no performance improvement is established."}, Recommendations: []string{}}
-	latest := map[string]domain.Evaluation{}
+	chosen, _ := latest(es)
 	for _, v := range es {
 		out.EvaluationIDs = append(out.EvaluationIDs, v.ID)
-		old, ok := latest[v.RunID]
-		if !ok || v.CreatedAt.After(old.CreatedAt) || v.CreatedAt.Equal(old.CreatedAt) && v.ID > old.ID {
-			latest[v.RunID] = v
-		}
 		b, _ := marshalEvaluation(v)
 		out.Evidence = append(out.Evidence, domain.FileRef{Path: "evaluations/" + v.ID + "/evaluation.json", SHA256: domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(b))), Bytes: int64(len(b))})
 	}
@@ -48,7 +45,7 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 				row.RunID = &rid
 				row.MissingEvidence = []string{"evaluation"}
 				out.Limitations = append(out.Limitations, "Run "+run.ID+" origin: "+run.Origin)
-				if v, ok := latest[run.ID]; ok {
+				if v, ok := chosen[run.ID]; ok {
 					vid := v.ID
 					row.EvaluationID = &vid
 					row.Execution = v.Execution
@@ -63,16 +60,55 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 							row.MissingEvidence = append(row.MissingEvidence, g.CriterionID)
 						}
 					}
+					if x := v.Verification; x != nil {
+						switch x.Status {
+						case "REJECT":
+							row.FailedCriteria = append(row.FailedCriteria, "verification")
+						case "ERROR", "UNAVAILABLE", "REFUSE":
+							row.MissingEvidence = append(row.MissingEvidence, "verification")
+						}
+					}
 					if v.Review == "PENDING" {
 						row.MissingEvidence = append(row.MissingEvidence, "review")
 					}
 				}
+			}
+			// Recommendations name only failed or missing gates; never claim improvement.
+			where := row.CaseID + "/" + row.ArmID + " (preparation " + row.PreparationID + ")"
+			if len(row.FailedCriteria) > 0 {
+				out.Recommendations = append(out.Recommendations, "Inspect failed gates for "+where+": "+strings.Join(row.FailedCriteria, ", "))
+			}
+			if len(row.MissingEvidence) > 0 {
+				out.Recommendations = append(out.Recommendations, "Supply or re-run missing evidence for "+where+": "+strings.Join(row.MissingEvidence, ", "))
 			}
 			out.Cases = append(out.Cases, row)
 		}
 	}
 	if len(ps) == 0 {
 		return out, &domain.Failure{Code: "EVIDENCE_CORRUPT", Path: "no preparation"}
+	}
+	// Embed only the newest committed comparison over exactly the selected evaluations.
+	cs, e := s.Repo.LoadComparisons(ctx, store)
+	if e != nil {
+		return out, e
+	}
+	selected := map[string]bool{}
+	for _, v := range chosen {
+		selected[v.ID] = true
+	}
+	for i := range cs {
+		c := cs[i]
+		ids := append(append([]string{}, c.LeftEvaluationIDs...), c.RightEvaluationIDs...)
+		match := len(ids) == len(selected)
+		for _, id := range ids {
+			match = match && selected[id]
+		}
+		if match && (out.Comparison == nil || c.CreatedAt.After(out.Comparison.CreatedAt) || c.CreatedAt.Equal(out.Comparison.CreatedAt) && c.ID > out.Comparison.ID) {
+			out.Comparison = &c
+		}
+	}
+	if out.Comparison == nil {
+		out.Limitations = append(out.Limitations, "No committed comparison covers exactly the selected evaluations; comparison is null.")
 	}
 	if s.JSONReport == nil || s.MarkdownReport == nil {
 		return out, &domain.Failure{Code: "IO_ERROR", Path: "renderer not configured"}

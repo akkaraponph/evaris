@@ -39,12 +39,10 @@ func (r Repository) SaveEvaluation(ctx context.Context, store string, v domain.E
 			return
 		}
 	}
-	for _, g := range v.Graders {
-		for _, ref := range g.Evidence {
-			b, e := readFile(filepath.Join(tx.root, ref.Path))
-			if e != nil || digest(b) != ref.SHA256 || int64(len(b)) != ref.Bytes {
-				return fail("EVIDENCE_CORRUPT", "grader evidence")
-			}
+	for _, ref := range evaluationRefs(v) {
+		b, e := readFile(filepath.Join(tx.root, ref.Path))
+		if e != nil || digest(b) != ref.SHA256 || int64(len(b)) != ref.Bytes {
+			return fail("EVIDENCE_CORRUPT", "evaluation evidence")
 		}
 	}
 	return tx.seal(ctx)
@@ -116,12 +114,10 @@ func (r Repository) LoadEvaluations(ctx context.Context, store string) (es []dom
 		if err = validateEvaluation(v, f); err != nil {
 			return
 		}
-		for _, g := range v.Graders {
-			for _, ref := range g.Evidence {
-				b, e := readFile(filepath.Join(root, ref.Path))
-				if e != nil || digest(b) != ref.SHA256 || int64(len(b)) != ref.Bytes {
-					return nil, nil, fail("EVIDENCE_CORRUPT", "grader evidence")
-				}
+		for _, ref := range evaluationRefs(v) {
+			b, e := readFile(filepath.Join(root, ref.Path))
+			if e != nil || digest(b) != ref.SHA256 || int64(len(b)) != ref.Bytes {
+				return nil, nil, fail("EVIDENCE_CORRUPT", "evaluation evidence")
 			}
 		}
 		a := domain.Assess(v.Graders, v.Review, v.Verification)

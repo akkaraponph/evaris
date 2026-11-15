@@ -1,0 +1,108 @@
+{
+  "schemaVersion": "invaris.evidence/v1alpha2",
+  "runId": "657d2aa2c61b8693c494c35de09531e4",
+  "action": "check",
+  "target": "@TARGET@",
+  "harness": "evaris-approved-result",
+  "configDigest": "@DIGEST@",
+  "gitRevision": null,
+  "gitDirty": null,
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64"
+  },
+  "startedAt": "2026-11-15T01:22:19.616253Z",
+  "finishedAt": "2026-11-15T01:22:19.621188Z",
+  "durationMs": 4,
+  "compatibility": {
+    "status": "native",
+    "inputVersion": "invaris.dev/v1alpha2",
+    "warnings": []
+  },
+  "policies": [
+    {
+      "id": "approved-result",
+      "allowEmpty": false
+    }
+  ],
+  "gate": {
+    "requiredGuards": [
+      "result-guard"
+    ],
+    "requiredProofs": [],
+    "precedence": "refusal-first",
+    "allowWeakEvidence": false
+  },
+  "lifecycle": [
+    {
+      "id": "result-guard",
+      "kind": "guard",
+      "status": "FAIL",
+      "startedAt": "2026-11-15T01:22:19.616256Z",
+      "finishedAt": "2026-11-15T01:22:19.61988Z"
+    }
+  ],
+  "steps": [],
+  "checks": [
+    {
+      "id": "result-guard",
+      "policyId": "approved-result",
+      "providerId": "invaris-command",
+      "status": "FAIL",
+      "inspected": 1,
+      "findings": [
+        {
+          "policyId": "approved-result",
+          "ruleId": "approved-result",
+          "path": "result.txt",
+          "message": ""
+        }
+      ],
+      "diagnostics": [
+        {
+          "code": "COMMAND_FAILED",
+          "message": "exit status 1"
+        }
+      ],
+      "exitCode": 1
+    }
+  ],
+  "proofs": [],
+  "observations": [
+    {
+      "id": "result-guard",
+      "kind": "guard",
+      "program": "@GUARD@",
+      "args": [],
+      "provider": {
+        "name": "invaris-command",
+        "version": null,
+        "toolName": null,
+        "toolVersion": null
+      },
+      "scope": [],
+      "startedAt": "2026-11-15T01:22:19.616256Z",
+      "finishedAt": "2026-11-15T01:22:19.61988Z",
+      "exitCode": 1,
+      "stdout": "{\"version\":\"invaris.inspection/v1alpha1\",\"policyId\":\"approved-result\",\"inspected\":1,\"findings\":[{\"policyId\":\"approved-result\",\"path\":\"result.txt\"}]}\n",
+      "stderr": "",
+      "truncated": false,
+      "diagnostics": [
+        {
+          "code": "COMMAND_FAILED",
+          "message": "exit status 1"
+        }
+      ],
+      "executable": {
+        "path": "@GUARD@",
+        "sha256": "b670447d1f9327cb95860d137a6f013c5ec41b4f30e56633e79cbc4c1cce52cf"
+      },
+      "timeoutSeconds": 30,
+      "envAllowlist": []
+    }
+  ],
+  "targetCount": 1,
+  "decision": "REJECT",
+  "diagnostics": [],
+  "artifacts": []
+}

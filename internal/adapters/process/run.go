@@ -25,6 +25,7 @@ type ProcessResult struct {
 type bounded struct {
 	sync.Mutex
 	b        []byte
+	limit    int
 	overflow bool
 }
 
@@ -32,7 +33,7 @@ func (w *bounded) Write(p []byte) (int, error) {
 	w.Lock()
 	defer w.Unlock()
 	n := len(p)
-	left := (64 << 10) - len(w.b)
+	left := w.limit - len(w.b)
 	if len(p) > left {
 		w.overflow = true
 		p = p[:left]
@@ -40,7 +41,15 @@ func (w *bounded) Write(p []byte) (int, error) {
 	w.b = append(w.b, p...)
 	return n, nil
 }
-func Run(ctx context.Context, cwd string, c domain.Command) (r ProcessResult) {
+
+// Run executes a trusted command with 64 KiB bounds on each stream.
+func Run(ctx context.Context, cwd string, c domain.Command) ProcessResult {
+	return RunLimited(ctx, cwd, c, 64<<10, 64<<10)
+}
+
+// RunLimited executes a trusted command with explicit stream bounds. Exceeding
+// either bound yields LIMIT_EXCEEDED; truncated output is never complete.
+func RunLimited(ctx context.Context, cwd string, c domain.Command, stdoutLimit, stderrLimit int) (r ProcessResult) {
 	r.StartedAt = time.Now().UTC()
 	defer func() { r.FinishedAt = time.Now().UTC() }()
 	duration := c.TimeoutSeconds
@@ -71,7 +80,7 @@ func Run(ctx context.Context, cwd string, c domain.Command) (r ProcessResult) {
 		return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 	}
 	cmd.WaitDelay = 250 * time.Millisecond
-	out, errout := &bounded{}, &bounded{}
+	out, errout := &bounded{limit: stdoutLimit}, &bounded{limit: stderrLimit}
 	cmd.Stdout = out
 	cmd.Stderr = errout
 	e = cmd.Run()

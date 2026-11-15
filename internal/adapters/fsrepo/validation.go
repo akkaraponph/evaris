@@ -109,8 +109,19 @@ func validateRun(ctx context.Context, root string, r domain.Run, p domain.Prepar
 	return nil
 }
 
+// evaluationRefs lists every evidence reference an evaluation record owns.
+func evaluationRefs(v domain.Evaluation) []domain.FileRef {
+	refs := []domain.FileRef{}
+	for _, g := range v.Graders {
+		refs = append(refs, g.Evidence...)
+	}
+	if v.Verification != nil {
+		refs = append(refs, v.Verification.Evidence...)
+	}
+	return refs
+}
 func validateEvaluation(v domain.Evaluation, f application.FrozenRun) error {
-	if !recordID.MatchString(v.ID) || v.CreatedAt.IsZero() || v.RunID != f.Run.ID || v.PreparationID != f.Run.PreparationID || v.ExperimentID != f.Run.ExperimentID || v.CaseID != f.Run.CaseID || v.ArmID != f.Run.ArmID || v.RunDigest != f.RunDigest || v.OracleDigest != f.Run.OracleDigest || v.Verification != nil {
+	if !recordID.MatchString(v.ID) || v.CreatedAt.IsZero() || v.RunID != f.Run.ID || v.PreparationID != f.Run.PreparationID || v.ExperimentID != f.Run.ExperimentID || v.CaseID != f.Run.CaseID || v.ArmID != f.Run.ArmID || v.RunDigest != f.RunDigest || v.OracleDigest != f.Run.OracleDigest || (v.Verification == nil) != (f.Case.Case.Verification == nil) {
 		return fail("EVIDENCE_CORRUPT", "evaluation identity")
 	}
 	review := domain.ReviewStatus("NOT_REQUIRED")
@@ -140,7 +151,20 @@ func validateEvaluation(v domain.Evaluation, f application.FrozenRun) error {
 			}
 		}
 	}
-	a := domain.Assess(v.Graders, v.Review, nil)
+	if x := v.Verification; x != nil {
+		if x.Required != f.Case.Case.Verification.Required || !domain.VerificationStatuses[x.Status] || x.Status == "NOT_CONFIGURED" || x.Evidence == nil || x.Findings == nil {
+			return fail("EVIDENCE_CORRUPT", "verification")
+		}
+		for _, ref := range x.Evidence {
+			if !domain.Relative(ref.Path) || !strings.HasPrefix(ref.Path, "evidence/verification/") || !digestPattern.MatchString(string(ref.SHA256)) || ref.Bytes < 0 {
+				return fail("EVIDENCE_CORRUPT", "verification evidence")
+			}
+		}
+		if x.Executable != nil && (!filepath.IsAbs(x.Executable.Path) || !digestPattern.MatchString(string(x.Executable.SHA256))) {
+			return fail("EVIDENCE_CORRUPT", "verification executable")
+		}
+	}
+	a := domain.Assess(v.Graders, v.Review, v.Verification)
 	if a.Execution != v.Execution || a.AgentOutcome != v.AgentOutcome || a.Final != v.Assessment {
 		return fail("EVIDENCE_CORRUPT", "assessment")
 	}

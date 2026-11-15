@@ -2,7 +2,6 @@ package fsrepo
 
 import (
 	"context"
-	"fmt"
 	"github.com/akkaraponph/evaris/internal/application"
 	"github.com/akkaraponph/evaris/internal/domain"
 	"io"
@@ -75,7 +74,11 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 	}
 	tasksRoot = filepath.Clean(tasksRoot)
 	for _, c := range p.Experiment.Cases {
-		for _, src := range []string{filepath.Join(p.ConfigDir, c.Fixture), filepath.Join(p.ConfigDir, c.Task), filepath.Join(p.ConfigDir, c.Oracle), p.OutputRoot} {
+		sources := []string{filepath.Join(p.ConfigDir, c.Fixture), filepath.Join(p.ConfigDir, c.Task), filepath.Join(p.ConfigDir, c.Oracle), p.OutputRoot}
+		if c.Verification != nil {
+			sources = append(sources, filepath.Join(p.ConfigDir, c.Verification.Harness))
+		}
+		for _, src := range sources {
 			if within(tasksRoot, src) || within(src, tasksRoot) {
 				return out, fail("PATH_UNSAFE", tasksRoot)
 			}
@@ -167,7 +170,7 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 				if e != nil {
 					return out, e
 				}
-				name := fmt.Sprintf(".evaris-instructions/%03d.txt", i)
+				name := domain.InstructionWorkspacePath(i)
 				if err = work.write(filepath.ToSlash(filepath.Join(prefix, name)), b); err != nil {
 					return out, err
 				}
@@ -199,7 +202,11 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 		}
 	}
 	for _, c := range p.Experiment.Cases {
-		for _, name := range []string{c.Task, c.Oracle} {
+		names := []string{c.Task, c.Oracle}
+		if c.Verification != nil {
+			names = append(names, c.Verification.Harness)
+		}
+		for _, name := range names {
 			a, e := readFile(filepath.Join(p.ConfigDir, name))
 			if e != nil {
 				return out, e
@@ -258,6 +265,9 @@ func freezeInputs(ctx context.Context, p application.Plan, dst string) (err erro
 	privatePaths := []string{p.ConfigPath}
 	for _, c := range p.Experiment.Cases {
 		privatePaths = append(privatePaths, filepath.Join(p.ConfigDir, c.Oracle))
+		if c.Verification != nil {
+			privatePaths = append(privatePaths, filepath.Join(p.ConfigDir, c.Verification.Harness))
+		}
 	}
 	if err = t.writeJSON(".evaris-private-sources.json", privatePaths); err != nil {
 		return err
@@ -304,6 +314,11 @@ func freezeInputs(ctx context.Context, p application.Plan, dst string) (err erro
 		}
 		if err = put(c.Oracle); err != nil {
 			return err
+		}
+		if c.Verification != nil {
+			if err = put(c.Verification.Harness); err != nil {
+				return err
+			}
 		}
 	}
 	for _, a := range p.Experiment.Arms {

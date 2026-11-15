@@ -54,3 +54,25 @@ func TestCommandCannotMutateEvidence(t *testing.T) {
 		t.Fatal("changed imported evidence")
 	}
 }
+
+// An ordinary exit-0 suite passes both controls; only the independent exact gate separates them.
+func TestGreenSuiteHiddenViolation(t *testing.T) {
+	suite := domain.Criterion{ID: "ordinary-suite", Kind: "command-exit", Required: true, Expected: json.RawMessage("0"), Command: &domain.Command{Program: "/bin/sh", Args: []string{"-c", "test -s result.txt"}, EnvAllowlist: []string{}}}
+	exact := domain.Criterion{ID: "result", Kind: "exact", Required: true, Path: "result.txt", Expected: json.RawMessage(`"approved\n"`)}
+	for _, tc := range []struct {
+		content, exact string
+	}{{"approved\n", "PASS"}, {"rejected\n", "FAIL"}} {
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "result.txt"), []byte(tc.content), 0600)
+		f := application.FrozenRun{SnapshotRoot: dir, AllowCommands: true}
+		s, _ := (Builtin{}).Grade(context.Background(), f, suite)
+		x, _ := (Builtin{}).Grade(context.Background(), f, exact)
+		if s.Status != "PASS" || x.Status != tc.exact {
+			t.Fatalf("%q: suite=%s exact=%s", tc.content, s.Status, x.Status)
+		}
+		a := domain.Assess([]domain.GraderResult{s, x}, "NOT_REQUIRED", nil)
+		if tc.exact == "FAIL" && a.Final != "FAIL" || tc.exact == "PASS" && a.Final != "PASS" {
+			t.Fatalf("green suite hid violation: %+v", a)
+		}
+	}
+}

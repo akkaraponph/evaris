@@ -15,6 +15,8 @@ type FrozenCase struct {
 	Oracle       domain.Oracle
 	Task         []byte
 	Instructions []InstructionBytes
+	// Harness holds the frozen private Invaris harness bytes when configured.
+	Harness []byte
 }
 type Plan struct {
 	Experiment   domain.Experiment
@@ -34,10 +36,13 @@ type Repository interface {
 	LoadEvaluations(context.Context, string) ([]domain.Evaluation, []domain.Run, error)
 	SaveReport(context.Context, string, domain.Report, []byte, []byte) error
 	LoadPreparations(context.Context, string) ([]domain.Preparation, error)
+	SaveComparison(context.Context, string, domain.Comparison) error
+	LoadComparisons(context.Context, string) ([]domain.Comparison, error)
 }
 type Service struct {
 	Repo           Repository
 	Grader         Grader
+	Verifier       Verifier
 	JSONReport     func(domain.Report) ([]byte, error)
 	MarkdownReport func(domain.Report) ([]byte, error)
 }
@@ -47,6 +52,12 @@ type Blob struct {
 }
 type Grader interface {
 	Grade(context.Context, FrozenRun, domain.Criterion) (domain.GraderResult, []Blob)
+}
+
+// Verifier runs an optional external verifier against a frozen run. It is only
+// consulted for cases that configure verification and only with command consent.
+type Verifier interface {
+	Verify(context.Context, FrozenRun) (domain.Verification, []Blob)
 }
 
 func (s Service) Validate(ctx context.Context, p string) (Plan, error) { return s.Repo.Load(ctx, p) }

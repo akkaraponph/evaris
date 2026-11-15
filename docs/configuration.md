@@ -20,3 +20,8 @@ Preparation and import are available; see [workflow.md](workflow.md). Configurat
 exclusion, criterion IDs, unchanged-file references and command environment/timeout
 checks. Directory isolation is not a security sandbox. See the plan for release
 gates and verification limitations.
+
+Cases may add an optional `verification` object (P1) naming a private Invaris
+harness, `required` and `timeoutSeconds` (1–300). Validation rejects a harness
+inside a fixture or the store, a fixture containing `invaris.json`, and harnesses
+outside the supported check-only profile. See [invaris.md](invaris.md).

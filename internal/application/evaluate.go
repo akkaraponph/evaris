@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"github.com/akkaraponph/evaris/internal/domain"
 	"strings"
@@ -37,7 +38,12 @@ func (s Service) Evaluate(ctx context.Context, store, id string, allow bool) (ou
 		blobs = append(blobs, b...)
 	}
 	out.Graders = append(out.Graders, authorization(f))
-	a := domain.Assess(out.Graders, out.Review, nil)
+	if f.Case.Case.Verification != nil {
+		v, b := s.verify(ctx, f)
+		out.Verification = &v
+		blobs = append(blobs, b...)
+	}
+	a := domain.Assess(out.Graders, out.Review, out.Verification)
 	out.Execution = a.Execution
 	out.AgentOutcome = a.AgentOutcome
 	out.Assessment = a.Final
@@ -88,6 +94,62 @@ func (s Service) grade(ctx context.Context, f FrozenRun, c domain.Criterion) (r 
 	}
 	return
 }
+
+// verify consults the external verifier only with consent, and normalizes any
+// invalid verifier output to ERROR so it can never become an ACCEPT.
+func (s Service) verify(ctx context.Context, f FrozenRun) (v domain.Verification, b []Blob) {
+	required := f.Case.Case.Verification.Required
+	base := func(status string, reason domain.Reason) domain.Verification {
+		return domain.Verification{Required: required, Status: status, Reason: reason, Evidence: []domain.FileRef{}, Findings: []domain.Finding{}}
+	}
+	if !f.AllowCommands {
+		return base("UNAVAILABLE", "COMMAND_NOT_AUTHORIZED"), nil
+	}
+	if s.Verifier == nil {
+		return base("ERROR", "TOOL_MISSING"), nil
+	}
+	defer func() {
+		if recover() != nil {
+			v, b = base("ERROR", "INVALID_GRADER_RESULT"), nil
+		}
+	}()
+	v, b = s.Verifier.Verify(ctx, f)
+	v.Required = required
+	if v.Evidence == nil {
+		v.Evidence = []domain.FileRef{}
+	}
+	if v.Findings == nil {
+		v.Findings = []domain.Finding{}
+	}
+	if !domain.VerificationStatuses[v.Status] || v.Status == "NOT_CONFIGURED" || !evidenceMatches(v.Evidence, b, "evidence/verification/") {
+		return base("ERROR", "INVALID_GRADER_RESULT"), nil
+	}
+	if v.Status == "ACCEPT" && (v.SchemaVersion == nil || v.RunID == nil || v.ConfigDigest == nil || v.ExitCode == nil || *v.ExitCode != 0) {
+		return base("ERROR", "INVALID_GRADER_RESULT"), nil
+	}
+	return v, b
+}
+
+// evidenceMatches requires every reference to name exactly one supplied blob
+// under prefix with matching bytes and digest.
+func evidenceMatches(refs []domain.FileRef, blobs []Blob, prefix string) bool {
+	for _, ref := range refs {
+		found := 0
+		for _, blob := range blobs {
+			if blob.Path != ref.Path {
+				continue
+			}
+			found++
+			if !domain.Relative(blob.Path) || !strings.HasPrefix(blob.Path, prefix) || domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(blob.Data))) != ref.SHA256 || int64(len(blob.Data)) != ref.Bytes {
+				return false
+			}
+		}
+		if found != 1 {
+			return false
+		}
+	}
+	return len(refs) == len(blobs)
+}
 func authorization(f FrozenRun) domain.GraderResult {
 	r := domain.GraderResult{CriterionID: "source-authorization", Required: true, Status: "PASS", Evidence: []domain.FileRef{}, GraderVersion: "builtin/1"}
 	initial := map[string]domain.FileRef{}
@@ -129,12 +191,21 @@ func authorization(f FrozenRun) domain.GraderResult {
 	}
 	return r
 }
-func operation(e error) error {
+
+// AsFailure gives every operation error a stable reason code for diagnostics.
+func AsFailure(e error) error {
 	if e == nil {
 		return nil
 	}
-	if _, ok := e.(*domain.Failure); ok {
+	var f *domain.Failure
+	if errors.As(e, &f) {
 		return e
 	}
-	return &domain.Failure{Code: "IO_ERROR", Path: fmt.Sprint("operation"), Err: e}
+	switch {
+	case errors.Is(e, context.Canceled):
+		return &domain.Failure{Code: "CANCELED", Path: "operation", Err: e}
+	case errors.Is(e, context.DeadlineExceeded):
+		return &domain.Failure{Code: "TIMEOUT", Path: "operation", Err: e}
+	}
+	return &domain.Failure{Code: "IO_ERROR", Path: "operation", Err: e}
 }

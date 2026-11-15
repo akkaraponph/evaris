@@ -15,12 +15,14 @@ go run ./cmd/evaris validate --experiment testdata/valid/experiment.json
 
 Preparation and import are implemented with frozen inputs and integrity checks.
 P0 also provides deterministic grading, immutable evaluations, JSON/Markdown
-reports, and an offline control demonstration. CI is configured for Linux and
-macOS; the remote matrix has not been run in this session. Comparison and
-Invaris integration remain future work. See [workflow](docs/workflow.md) and
-[configuration status](docs/configuration.md).
+reports, and an offline control demonstration. P1 adds optional verification
+through an external Invaris CLI ([invaris.md](docs/invaris.md)) and baseline and
+revision comparisons ([comparison.md](docs/comparison.md)). CI is configured for
+Linux and macOS; the remote matrix has not been run yet. See
+[workflow](docs/workflow.md), [configuration](docs/configuration.md) and the
+[verification status](docs/p0-readiness.md).
 
-## Build and verify P0
+## Build and verify
 
 ```sh
 mkdir -p .panda-suite/build
@@ -30,11 +32,15 @@ go test -race ./...
 go vet ./...
 ```
 
-The five commands are `validate`, `prepare`, `import`, `evaluate`, and `report`.
-`evaluate --store DIR --run ID` publishes a fresh immutable evaluation; add
-`--allow-commands` only for trusted command graders. `report --store DIR` creates
-JSON and Markdown files under the printed report ID. Assessment exits are
-0 for PASS, 1 for a known FAIL, and 2 for incomplete evidence or operation errors.
+The six commands are `validate`, `prepare`, `import`, `evaluate`, `report`, and
+`compare`. `evaluate --store DIR --run ID` publishes a fresh immutable evaluation;
+add `--allow-commands` only for trusted command graders, and `--invaris PATH` for
+cases that configure Invaris verification. `report --store DIR` creates JSON and
+Markdown files under the printed report ID. `compare --left DIR --right DIR
+--mode arms|revisions` records whether conditions matched and, only then, the
+observed transitions. Exits are 0 for PASS (or no observed regression), 1 for a
+known FAIL (or an observed comparable regression), and 2 for incomplete evidence,
+non-comparable inputs or operation errors.
 
 Run the [offline controls](examples/offline/README.md) to observe both ordinary
 suites pass while the independent acceptance grader rejects the bad control.
@@ -47,10 +53,11 @@ case workspaces, import real results from externally run agents, apply determini
 graders, and write JSON and Markdown reports. It should work offline without an
 LLM API, using JSON configuration and filesystem artifacts.
 
-Later work may add baseline comparisons, regression reporting, and optional
+P1 adds baseline and revision comparisons, regression observations, and optional
 Invaris CLI integration. Panda Suite is a prospective consumer, not a required
-dependency. An Invaris verification verdict must remain separate from the Evaris
-assessment of whether an agent completed its task.
+dependency. An Invaris verification verdict remains separate from the Evaris
+assessment of whether an agent completed its task: Invaris ACCEPT never replaces
+a failed or missing Evaris criterion.
 
 ## Architecture
 
@@ -60,9 +67,9 @@ The following paths describe ownership in the current implementation:
 | Area | Path | Responsibility |
 | --- | --- | --- |
 | Composition | `cmd/evaris/` | Wire dependencies and translate process exit status |
-| Domain | `internal/domain/` | Experiment, case, preparation, and run records |
-| Application | `internal/application/` | Coordinate validation, preparation, and import |
-| Adapters | `internal/adapters/` | CLI input, strict JSON, snapshots, and filesystem evidence |
+| Domain | `internal/domain/` | Experiment, run, evaluation and comparison rules |
+| Application | `internal/application/` | Lifecycle: validate, prepare, import, evaluate, report, compare |
+| Adapters | `internal/adapters/` | CLI, strict JSON and filesystem evidence, graders, processes, renderers, Invaris CLI client |
 
 Dependencies point inward: adapters depend on application and domain code;
 application code depends on domain code. Domain code must not depend on CLI,

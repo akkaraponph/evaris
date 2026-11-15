@@ -41,7 +41,20 @@ type Case struct {
 	SourceRevision string   `json:"sourceRevision"`
 	AllowedChanges []string `json:"allowedChanges"`
 	RequiresReview bool     `json:"requiresReview"`
+	// Verification is the optional P1 Invaris check; absent means not configured.
+	Verification *VerificationConfig `json:"verification,omitempty"`
 }
+
+// VerificationConfig names a private, trusted Invaris harness for one case.
+type VerificationConfig struct {
+	Harness        string `json:"harness"`
+	Required       bool   `json:"required"`
+	TimeoutSeconds int    `json:"timeoutSeconds"`
+}
+
+// HarnessName is the reserved scratch-root file the frozen harness is written to.
+const HarnessName = "invaris.json"
+
 type Arm struct {
 	ID           string        `json:"id"`
 	Instructions []Instruction `json:"instructions"`
@@ -103,6 +116,12 @@ func ValidateExperiment(e Experiment) error {
 			if !Relative(p) {
 				return bad("PATH_UNSAFE")
 			}
+			if c.Verification != nil && p == HarnessName {
+				return bad("PATH_UNSAFE")
+			}
+		}
+		if v := c.Verification; v != nil && (!Relative(v.Harness) || v.TimeoutSeconds < 1 || v.TimeoutSeconds > 300) {
+			return bad("INVALID_CONFIG")
 		}
 	}
 	seen = map[string]bool{}

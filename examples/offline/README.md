@@ -31,3 +31,17 @@ For actual host runs, use the five commands in docs/workflow.md and import the
 real response/tree/transcripts. Keep unobserved metadata null. Evaris never invents
 an external host answer. Temporary evidence may contain private bytes; inspect
 and remove the printed directory manually when no longer needed.
+
+## P1: verification and comparison
+
+The acceptance test `TestP1FakeVerifierWorkflow` extends these controls with a
+required Invaris check and runs `compare` in arms and revisions modes. It uses
+authored control metadata labeled `synthetic-control` and a fake executable that
+replays recorded Invaris output, so it checks Evaris's handling only. With a
+binary built from the pinned Invaris revision, run the real version:
+
+```sh
+EVARIS_TEST_INVARIS=/abs/invaris GOTOOLCHAIN=local GOPROXY=off go test ./internal/acceptance -run TestP1OfflineIntegration -count=1 -v
+```
+
+Neither test measures agent or model performance.

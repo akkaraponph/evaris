@@ -28,6 +28,28 @@ func Markdown(r domain.Report) ([]byte, error) {
 	for _, s := range r.Limitations {
 		fmt.Fprintf(&b, "- %s\n", safe(s))
 	}
+	b.WriteString("\n## Comparison\n\n")
+	if c := r.Comparison; c == nil {
+		b.WriteString("None.\n")
+	} else {
+		fmt.Fprintf(&b, "Mode: %s; comparable: %t; ID: %s\n\n", safe(c.Mode), c.Comparable, safe(c.ID))
+		for _, s := range c.Reasons {
+			fmt.Fprintf(&b, "- Not comparable: %s\n", safe(s))
+		}
+		if len(c.Pairs) > 0 {
+			b.WriteString("\n| Case | Dimension | Transition | Left evaluation | Right evaluation |\n| --- | --- | --- | --- | --- |\n")
+			for _, p := range c.Pairs {
+				fmt.Fprintf(&b, "| %s | %s | %s | %s | %s |\n", safe(p.CaseID), safe(p.Dimension), safe(p.Transition), safe(p.LeftID), safe(p.RightID))
+			}
+		}
+		for _, s := range c.Limitations {
+			fmt.Fprintf(&b, "- %s\n", safe(s))
+		}
+	}
+	b.WriteString("\n## Recommendations\n\n")
+	for _, s := range r.Recommendations {
+		fmt.Fprintf(&b, "- %s\n", safe(s))
+	}
 	b.WriteString("\n## Evidence\n\n")
 	for _, ref := range r.Evidence {
 		fmt.Fprintf(&b, "- %s (%s)\n", safe(ref.Path), safe(string(ref.SHA256)))

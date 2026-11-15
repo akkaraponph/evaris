@@ -42,3 +42,13 @@ INCONCLUSIVE rows. Old evaluations remain immutable and referenced. Reports neve
 inline artifact contents or raw command streams. Command evidence records bounded
 process output, executable identity, before/after scratch manifests and cleanup
 status. Hashes identify bytes; they do not authenticate tools.
+
+## P1 records
+
+Evaluations of cases with configured verification carry a non-null
+`verification` object; its raw stdout, stderr and process record live under the
+evaluation's `evidence/verification/`. Report rows list `verification` as a
+failed gate on REJECT and as missing evidence on ERROR, UNAVAILABLE or REFUSE.
+Comparisons are stored as `comparisons/<id>/comparison.json` with a COMMITTED
+marker and validated on read; see [invaris.md](invaris.md) and
+[comparison.md](comparison.md).

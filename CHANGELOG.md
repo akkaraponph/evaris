@@ -9,3 +9,11 @@
 - Preserve evaluations and generate JSON/Markdown reports with missing evidence
   and pending semantic review shown explicitly.
 - Add original offline positive/negative controls and Linux/macOS CI checks.
+- Add optional Invaris `check` verification through the external CLI, pinned to
+  Invaris source `ee92f3c00c1b59b2f576bad05569fb6eafb83097`, with strict
+  evidence validation. Native ACCEPT/REJECT/REFUSE is recorded separately from
+  the Evaris assessment; ACCEPT never replaces a failed criterion.
+- Add `compare` for baseline/specialist arms and instruction revisions. Changed
+  or unobserved conditions produce NOT_COMPARABLE reasons instead of claims;
+  reports embed a comparison only when it covers exactly their evaluations.
+- Recommendations in reports name failed and missing gates.

@@ -1,0 +1,101 @@
+{
+  "schemaVersion": "invaris.evidence/v1alpha2",
+  "runId": "ec0acd9d7746c7e9bd08ade00fdc720f",
+  "action": "check",
+  "target": "@TARGET@",
+  "harness": "evaris-approved-result",
+  "configDigest": "@DIGEST@",
+  "gitRevision": null,
+  "gitDirty": null,
+  "environment": {
+    "os": "darwin",
+    "arch": "arm64"
+  },
+  "startedAt": "2026-11-15T01:22:19.648125Z",
+  "finishedAt": "2026-11-15T01:22:19.65215Z",
+  "durationMs": 4,
+  "compatibility": {
+    "status": "native",
+    "inputVersion": "invaris.dev/v1alpha2",
+    "warnings": []
+  },
+  "policies": [
+    {
+      "id": "approved-result",
+      "allowEmpty": false
+    }
+  ],
+  "gate": {
+    "requiredGuards": [
+      "result-guard"
+    ],
+    "requiredProofs": [],
+    "precedence": "refusal-first",
+    "allowWeakEvidence": false
+  },
+  "lifecycle": [
+    {
+      "id": "result-guard",
+      "kind": "guard",
+      "status": "REFUSE",
+      "startedAt": "2026-11-15T01:22:19.648128Z",
+      "finishedAt": "2026-11-15T01:22:19.651116Z"
+    }
+  ],
+  "steps": [],
+  "checks": [
+    {
+      "id": "result-guard",
+      "policyId": "approved-result",
+      "providerId": "invaris-command",
+      "status": "REFUSE",
+      "inspected": null,
+      "findings": [],
+      "diagnostics": [
+        {
+          "code": "REFUSED",
+          "message": "invalid or incomplete inspection evidence"
+        }
+      ],
+      "exitCode": 2
+    }
+  ],
+  "proofs": [],
+  "observations": [
+    {
+      "id": "result-guard",
+      "kind": "guard",
+      "program": "@GUARD@",
+      "args": [],
+      "provider": {
+        "name": "invaris-command",
+        "version": null,
+        "toolName": null,
+        "toolVersion": null
+      },
+      "scope": [],
+      "startedAt": "2026-11-15T01:22:19.648128Z",
+      "finishedAt": "2026-11-15T01:22:19.651116Z",
+      "exitCode": 2,
+      "stdout": "",
+      "stderr": "result.txt missing or not a recognized control\n",
+      "truncated": false,
+      "diagnostics": [
+        {
+          "code": "REFUSED",
+          "message": "invalid or incomplete inspection evidence"
+        }
+      ],
+      "executable": {
+        "path": "@GUARD@",
+        "sha256": "b670447d1f9327cb95860d137a6f013c5ec41b4f30e56633e79cbc4c1cce52cf"
+      },
+      "timeoutSeconds": 30,
+      "envAllowlist": []
+    }
+  ],
+  "targetCount": 0,
+  "decision": "REFUSE",
+  "diagnostics": [],
+  "artifacts": []
+}
