@@ -3,10 +3,15 @@
 Run from the repository root with Go 1.27.4 or newer:
 
 ```sh
-go build -o /tmp/evaris ./cmd/evaris
-/tmp/evaris validate --experiment testdata/valid/experiment.json
-/tmp/evaris prepare --experiment testdata/valid/experiment.json --tasks-root /absolute/new/task-root
+mkdir -p .panda-suite/build
+go build -o .panda-suite/build/evaris ./cmd/evaris
+.panda-suite/build/evaris validate --experiment testdata/valid/experiment.json
+.panda-suite/build/evaris prepare --experiment testdata/valid/experiment.json --tasks-root /absolute/new/task-root
 ```
+
+The commands below use this binary path from the repository root; adjust it if
+you built elsewhere. For a real external-agent evaluation, follow the
+[pilot runbook](pilot.md).
 
 Replace `/absolute/new/task-root` with a new absolute destination whose parent
 exists and contains no symlink components. The example's private evidence store
@@ -65,7 +70,7 @@ Use origin synthetic-control for authored controls, not external-agent. Evaris
 cannot attest the truth of host metadata or origin labels.
 
 ```sh
-/tmp/evaris import --store /absolute/path/to/evidence --record /absolute/path/to/import.json
+.panda-suite/build/evaris import --store /absolute/path/to/evidence --record /absolute/path/to/import.json
 ```
 
 Import copies supplied bytes; it never executes imported text/scripts. A forbidden

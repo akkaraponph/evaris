@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased (planned 0.2.0; not tagged)
+
+- Runbook for real external-agent evaluations (`docs/pilot.md`); documented
+  commands use one binary path.
+- A process-validation pilot (kept privately with its preregistration):
+  12 sessions across 3 trials, all passed, comparisons NOT_COMPARABLE because the
+  host metadata was unobserved. Not evidence of agent or instruction effectiveness.
+- 0.2.0 is not complete until a person other than the first operator reproduces
+  the grading and the release checklist is run on the candidate commit.
+
 ## 0.1.0 - 2026-11-15
 
 First release.

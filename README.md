@@ -20,7 +20,7 @@ reports, and an offline control demonstration. P1 adds optional verification
 through an external Invaris CLI ([invaris.md](docs/invaris.md)) and baseline and
 revision comparisons ([comparison.md](docs/comparison.md)). Linux and macOS are
 supported; Windows is not. See [releases and support](docs/release.md),
-[workflow](docs/workflow.md), [configuration](docs/configuration.md) and the
+[workflow](docs/workflow.md), [pilot runbook](docs/pilot.md), [configuration](docs/configuration.md) and the
 [verification status](docs/p0-readiness.md).
 
 ## Build and verify
