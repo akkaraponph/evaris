@@ -1,0 +1,1 @@
+Produce result.txt containing approved followed by a newline.

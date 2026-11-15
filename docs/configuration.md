@@ -1,0 +1,22 @@
+# Experiment configuration
+
+The current executable supports:
+
+```sh
+go run ./cmd/evaris validate --experiment testdata/valid/experiment.json
+```
+
+The example defines one case and baseline/specialist arms. Paths resolve relative
+to the experiment file. Validation is read-only. A valid request prints JSON with
+`valid`, `experimentId`, and the SHA-256 of the exact configuration bytes. Errors
+use stderr and exit status 2 (the `go run` wrapper itself may return status 1).
+
+JSON rejects duplicate keys, unknown fields, trailing values, omitted required
+fields, non-nullable nulls, invalid UTF-8, inputs above 1 MiB and nesting above 32.
+The domain requires the experiment and oracle v1alpha1 versions. The implementation plan is maintained locally under
+`.panda-suite/plans/evaris-master-plan.md`; it is not distributed in source archives.
+
+Preparation and import are available; see [workflow.md](workflow.md). Configuration validation includes fixture traversal, cross-case private-input
+exclusion, criterion IDs, unchanged-file references and command environment/timeout
+checks. Directory isolation is not a security sandbox. See the plan for release
+gates and verification limitations.

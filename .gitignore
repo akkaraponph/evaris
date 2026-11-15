@@ -18,6 +18,33 @@ coverage.*
 *.coverprofile
 profile.cov
 
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.fseventsd
+.TemporaryItems
+.DocumentRevisions-V100
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
@@ -31,3 +58,23 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# Local secrets (keep configuration examples trackable)
+.env.*
+!.env.example
+!.env.*.example
+
+# Local builds and tooling
+/bin/
+/dist/
+/coverage/
+/evaris
+/.panda-suite/
+
+# Private evaluation evidence and agent workspaces
+/evidence/
+/tasks/
+/.evaris/
+/testdata/valid/evidence/
+
+/examples/offline/evidence/

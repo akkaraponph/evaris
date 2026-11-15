@@ -1,0 +1,27 @@
+name: Go checks
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  verify:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5
+        with:
+          go-version-file: go.mod
+          cache: false
+      - name: Format
+        run: test -z "$(gofmt -l cmd internal)"
+      - run: go build ./...
+      - run: go vet ./...
+      - run: go test -race ./...
+      - name: Offline application acceptance
+        env:
+          GOPROXY: "off"
+          GOTOOLCHAIN: local
+          GOSUMDB: "off"
+        run: go test ./internal/acceptance -count=1

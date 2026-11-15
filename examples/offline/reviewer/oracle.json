@@ -1,0 +1,1 @@
+{"schemaVersion":"evaris.oracle/v1alpha1","criteria":[{"id":"result","kind":"exact","required":true,"path":"result.txt","expected":"approved\n"}]}
