@@ -86,6 +86,9 @@ separately; older binaries may reject those records. The first release has no
 earlier Evaris release to roll back to. Commands and guards can have operator
 controlled side effects that replacing the Evaris binary cannot undo.
 
-Known limitations to state in release notes: no real agent has been evaluated
-(all bundled runs are synthetic controls), commands and Invaris guards are not
-sandboxed, and only the pinned Invaris revision is supported.
+Known limitations to state in release notes: bundled runs are synthetic
+controls; the v0.2.0 process pilot ran real external agent sessions with
+observed host metadata, but its comparisons were NOT_COMPARABLE and its outcomes
+come from 3 trials with one host and model, so it supports no agent or
+instruction-effectiveness claim; commands and Invaris guards are not
+sandboxed; and only the pinned Invaris revision is supported.

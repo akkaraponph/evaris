@@ -53,9 +53,12 @@ the timeout controls retain their one-second deadlines.
 ## Not yet established
 
 - No agent or instruction-file effectiveness. The bundled offline runs are
-  synthetic controls. The v0.2.0 pilot evaluated real external agent sessions
-  (fresh-context subagents), but host metadata was unobserved, so every comparison was NOT_COMPARABLE, and its tasks hit a
-  ceiling. Its results are descriptive only.
+  synthetic controls. The v0.2.0 pilot evaluated real Claude Code CLI sessions
+  with observed host metadata. Earlier revisions hit a ceiling or excluded arms
+  for host-configuration reasons; in the final revision one case separated the
+  arms descriptively, but every comparison was NOT_COMPARABLE because the
+  preregistered rule counted only one way of reading the instruction file. Its
+  results are descriptive only.
 - Independent reproduction of pilot grading by a second human operator.
 - Compatibility with Invaris revisions other than the pinned one.
 

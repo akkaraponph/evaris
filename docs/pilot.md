@@ -70,6 +70,31 @@ that workspace (`<tasks-root>/<preparation id>/<case>/<arm>`):
 - Do not rerun a failed arm inside the same trial. Log crashes, timeouts and
   deviations; failed and incomplete runs stay in the evidence.
 
+Before the first trial, run a smoke session that attempts every action your
+protocol allows or forbids (edit and create inside the workspace, write and read
+outside it, permitted and forbidden shell commands) and check the files on disk.
+Lessons from the v0.2.0 pilot with the Claude Code CLI (`claude -p`), version
+2.1.251:
+
+- `--permission-mode dontAsk` denies every tool that is not pre-allowed, including
+  Edit and Write; a run then ends with an untouched tree. `acceptEdits` together
+  with `--restricted` allowed edits inside the working directory only.
+- `--restricted` also allows the host's per-session scratchpad, which is outside
+  the workspace (under `/tmp` by default). Set `CLAUDE_CODE_TMPDIR` to an
+  arm-private directory and declare it in the protocol, or arms that write scratch
+  files will breach a "workspace only" exclusion rule.
+- `--output-format stream-json --verbose` gives an init event with the model,
+  tools, permission mode, version, session ID, skills, plugins and memory paths:
+  enough to fill every `observed` field from evidence.
+- Telling the specialist to read `.evaris-instructions/` does not guarantee it
+  does. Under `acceptEdits` the host also ran read-only shell commands such as
+  `cat`, and specialists often read the instruction file that way. Decide before
+  the first trial which tool calls count as loading (for example any call whose
+  result contains the file), derive `loadedInstructions` from the transcript by
+  that rule, and expect Evaris to report a mismatch as not comparable.
+- Code the agent runs through permitted commands (for example `go test`) is not
+  confined by the host's file-tool restrictions.
+
 ## 4. Import
 
 Write an import request outside every agent workspace (schema in

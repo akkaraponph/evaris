@@ -4,9 +4,15 @@
 
 - Runbook for real external-agent evaluations (`docs/pilot.md`); documented
   commands use one binary path.
-- A process-validation pilot (kept privately with its preregistration):
-  12 sessions across 3 trials, all passed, comparisons NOT_COMPARABLE because the
-  host metadata was unobserved. Not evidence of agent or instruction effectiveness.
+- A process-validation pilot (kept privately with its preregistrations) of real
+  Claude Code CLI sessions with every `observed` field taken from the host
+  transcript. The final revision ran 12 sessions in 3 trials: one case separated
+  the arms descriptively (baseline failed one stated rule in 2 of 3 trials), but
+  every comparison was NOT_COMPARABLE because specialists read the instruction
+  file through a shell command that the preregistered loading rule did not
+  count. Not evidence of agent or instruction effectiveness.
+- Runbook lessons for the Claude Code CLI host: permission mode, scratchpad
+  location, observed-metadata sources and instruction-loading detection.
 - 0.2.0 is not complete until a person other than the first operator reproduces
   the grading and the release checklist is run on the candidate commit.
 
