@@ -1,8 +1,8 @@
 # Changelog
 
-## 0.1.0 - not yet tagged
+## 0.1.0 - 2026-11-15
 
-First release. Date is set when the tag is created.
+First release.
 
 - Validate versioned experiments, prepare blind baseline/specialist workspaces,
   and import externally produced outputs with frozen provenance.
@@ -23,6 +23,8 @@ First release. Date is set when the tag is created.
   `-ldflags "-X main.version=..."`, and reports record it as `evarisVersion`.
 - Supported platforms, record compatibility and reproducible builds are
   documented in `docs/release.md`.
+- Isolate output-limit verification from the short timeout controls, retaining
+  an exact 4 MiB bound assertion on slow race-enabled CI runners.
 
 Known limitations: no real agent has been evaluated (bundled runs are synthetic
 controls); command graders and Invaris guards are not sandboxed; Windows is not

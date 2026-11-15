@@ -7,7 +7,7 @@ deterministic checks, independent review, and transparent evidence.
 
 ## Status
 
-Version 0.1.0 is the first release candidate. It supports experiment
+Version 0.1.0 is the first release. It supports experiment
 validation, blind preparation, and external-result import:
 
 ```sh
@@ -26,7 +26,7 @@ supported; Windows is not. See [releases and support](docs/release.md),
 ## Build and verify
 
 ```sh
-go install github.com/akkaraponph/evaris/cmd/evaris@v0.1.0   # once tagged
+go install github.com/akkaraponph/evaris/cmd/evaris@v0.1.0
 evaris --version
 
 mkdir -p .panda-suite/build                # or build from a checkout

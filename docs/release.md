@@ -71,6 +71,21 @@ built; they identify bytes and are not signatures.
    binaries with `SHA256SUMS`. Tagging and publishing are explicit maintainer
    actions.
 
+## Installation verification and recovery
+
+After downloading the binary for your OS and architecture, verify its entry in
+`SHA256SUMS`, make it executable, and run `evaris --version` and
+`evaris validate --experiment testdata/valid/experiment.json` from a source
+checkout. Stop publication or installation if a checksum, version, validation,
+or required CI check fails.
+
+There are no services or database migrations to deploy. Keep existing evidence
+stores intact when replacing a binary. To recover from a later release, reinstall
+the previous supported binary and retain stores written with newer schemas
+separately; older binaries may reject those records. The first release has no
+earlier Evaris release to roll back to. Commands and guards can have operator
+controlled side effects that replacing the Evaris binary cannot undo.
+
 Known limitations to state in release notes: no real agent has been evaluated
 (all bundled runs are synthetic controls), commands and Invaris guards are not
 sandboxed, and only the pinned Invaris revision is supported.

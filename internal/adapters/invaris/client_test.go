@@ -81,26 +81,29 @@ func TestInvarisClientFailures(t *testing.T) {
 	harness := harnessBytes("/guard")
 	accept := templateFor("ACCEPT", harness)
 	for name, tc := range map[string]struct {
-		body   string
-		ctx    func() (context.Context, context.CancelFunc)
-		reason domain.Reason
+		body    string
+		ctx     func() (context.Context, context.CancelFunc)
+		reason  domain.Reason
+		timeout int
 	}{
-		"timeout": {`sleep 30`, nil, "TIMEOUT"},
+		"timeout": {`sleep 30`, nil, "TIMEOUT", 1},
 		"cancellation": {`sleep 30`, func() (context.Context, context.CancelFunc) {
 			ctx, cancel := context.WithCancel(context.Background())
 			time.AfterFunc(300*time.Millisecond, cancel)
 			return ctx, cancel
-		}, "CANCELED"},
-		"output limit":         {`head -c 4200000 /dev/zero | tr '\000' a; exit 0`, nil, "LIMIT_EXCEEDED"},
-		"malformed":            {`echo not-json; exit 0`, nil, "EVIDENCE_CORRUPT"},
-		"exit 2 silent":        {`echo usage >&2; exit 2`, nil, "OUTPUT_MISSING"},
-		"partial then timeout": {`head -c 100 @TEMPLATE@; sleep 30`, nil, "TIMEOUT"},
-		"wrong target":         {`sed "s#@TARGET@#/elsewhere#g" @TEMPLATE@; exit 0`, nil, "EVIDENCE_CORRUPT"},
+		}, "CANCELED", 5},
+		// Exercise the byte bound without racing the one-second timeout cases.
+		// Zero bytes are sufficient: the process limit precedes JSON decoding.
+		"output limit":         {`head -c 4200000 /dev/zero; exit 0`, nil, "LIMIT_EXCEEDED", 5},
+		"malformed":            {`echo not-json; exit 0`, nil, "EVIDENCE_CORRUPT", 5},
+		"exit 2 silent":        {`echo usage >&2; exit 2`, nil, "OUTPUT_MISSING", 5},
+		"partial then timeout": {`head -c 100 @TEMPLATE@; sleep 30`, nil, "TIMEOUT", 1},
+		"wrong target":         {`sed "s#@TARGET@#/elsewhere#g" @TEMPLATE@; exit 0`, nil, "EVIDENCE_CORRUPT", 5},
 	} {
 		t.Run(name, func(t *testing.T) {
 			exe := fake(t, accept, tc.body)
 			f := frozen(t, "approved\n", harness, true)
-			f.Case.Case.Verification.TimeoutSeconds = 1
+			f.Case.Case.Verification.TimeoutSeconds = tc.timeout
 			ctx, cancel := context.WithCancel(context.Background())
 			if tc.ctx != nil {
 				ctx, cancel = tc.ctx()
@@ -111,8 +114,11 @@ func TestInvarisClientFailures(t *testing.T) {
 			if v.Status != "ERROR" || v.Reason != tc.reason || v.RunID != nil {
 				t.Fatalf("%+v", v)
 			}
-			if len(blobs) != 3 || time.Since(start) > 10*time.Second {
+			if len(blobs) != 3 || len(v.Evidence) != 3 || time.Since(start) > 10*time.Second {
 				t.Fatalf("evidence=%d elapsed=%s", len(blobs), time.Since(start))
+			}
+			if tc.reason == "LIMIT_EXCEEDED" && (len(blobs[0].Data) != maxEvidence || v.Evidence[0].Bytes != int64(maxEvidence)) {
+				t.Fatalf("stdout bound: retained=%d evidence=%d want=%d", len(blobs[0].Data), v.Evidence[0].Bytes, maxEvidence)
 			}
 		})
 	}
