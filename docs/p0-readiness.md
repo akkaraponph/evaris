@@ -52,7 +52,11 @@ the timeout controls retain their one-second deadlines.
 
 ## Not yet established
 
-- No real agent has been evaluated. All runs are synthetic controls.
+- No agent or instruction-file effectiveness. The bundled offline runs are
+  synthetic controls. The v0.2.0 pilot evaluated real external agent sessions
+  (fresh-context subagents), but host metadata was unobserved, so every comparison was NOT_COMPARABLE, and its tasks hit a
+  ceiling. Its results are descriptive only.
+- Independent reproduction of pilot grading by a second human operator.
 - Compatibility with Invaris revisions other than the pinned one.
 
 Release steps and the support matrix are in [release.md](release.md). Release
