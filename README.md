@@ -7,25 +7,29 @@ deterministic checks, independent review, and transparent evidence.
 
 ## Status
 
-The Go executable supports experiment validation, blind preparation, and external-result import:
+Version 0.1.0 is the first release candidate. It supports experiment
+validation, blind preparation, and external-result import:
 
 ```sh
 go run ./cmd/evaris validate --experiment testdata/valid/experiment.json
 ```
 
 Preparation and import are implemented with frozen inputs and integrity checks.
-P0 also provides deterministic grading, immutable evaluations, JSON/Markdown
+The release also provides deterministic grading, immutable evaluations, JSON/Markdown
 reports, and an offline control demonstration. P1 adds optional verification
 through an external Invaris CLI ([invaris.md](docs/invaris.md)) and baseline and
-revision comparisons ([comparison.md](docs/comparison.md)). CI is configured for
-Linux and macOS; the remote matrix has not been run yet. See
+revision comparisons ([comparison.md](docs/comparison.md)). Linux and macOS are
+supported; Windows is not. See [releases and support](docs/release.md),
 [workflow](docs/workflow.md), [configuration](docs/configuration.md) and the
 [verification status](docs/p0-readiness.md).
 
 ## Build and verify
 
 ```sh
-mkdir -p .panda-suite/build
+go install github.com/akkaraponph/evaris/cmd/evaris@v0.1.0   # once tagged
+evaris --version
+
+mkdir -p .panda-suite/build                # or build from a checkout
 go build -o .panda-suite/build/evaris ./cmd/evaris
 .panda-suite/build/evaris --help
 go test -race ./...

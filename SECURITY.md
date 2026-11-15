@@ -2,11 +2,10 @@
 
 ## Project status
 
-Evaris is pre-release. The current CLI validates experiments, prepares workspaces,
-and imports external results.
-There are no published release lines with a security maintenance commitment.
-Security fixes during development target the default branch; a release support
-policy will be documented when releases exist.
+Evaris is in 0.x development. Only the latest 0.1.x release and the default
+branch receive security fixes; there is no long-term support line. The CLI
+validates experiments, prepares workspaces, imports external results, grades
+them, writes reports, compares runs, and can call an external Invaris binary.
 
 ## Reporting a vulnerability
 
@@ -22,12 +21,12 @@ environment, reproduction steps, expected and observed behavior, impact, and a
 minimal example with secrets removed. No response-time guarantee is currently
 established.
 
-## Intended security boundaries
+## Security boundaries
 
-The planned framework will process fixtures, imported agent outputs, and evidence
-that may be untrusted. Filesystem separation alone will not provide a sandbox.
-Running user-supplied or agent-generated commands requires an appropriate
-execution environment and explicit authorization.
+Evaris processes fixtures, imported agent outputs, and evidence that may be
+untrusted. Filesystem separation is not a sandbox. Command graders and Invaris
+guards run only with `--allow-commands`, are trusted by the operator, and are
+not sandboxed; see [docs/security.md](docs/security.md).
 
 Implementation reviews should address path traversal, symlink escapes, reviewer
 oracle disclosure, source mutation, stale or malformed evidence, secret leakage,

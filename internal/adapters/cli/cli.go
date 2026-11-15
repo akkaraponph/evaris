@@ -20,8 +20,16 @@ type Runtime struct {
 }
 
 func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime Runtime) int {
+	if len(args) == 1 && args[0] == "--version" {
+		v := runtime.Version
+		if v == "" {
+			v = "dev"
+		}
+		fmt.Fprintln(stdout, "evaris", v)
+		return 0
+	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(stdout, "usage: evaris <validate|prepare|import|evaluate|report|compare> [flags]")
+		fmt.Fprintln(stdout, "usage: evaris <validate|prepare|import|evaluate|report|compare> [flags] | --version")
 		return 0
 	}
 	if len(args) == 0 {

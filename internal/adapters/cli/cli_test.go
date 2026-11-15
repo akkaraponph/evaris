@@ -22,3 +22,12 @@ func TestCLIFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestCLIVersion(t *testing.T) {
+	for _, c := range []struct{ in, want string }{{"", "evaris dev\n"}, {"v0.1.0", "evaris v0.1.0\n"}} {
+		var out, errb bytes.Buffer
+		if code := Run(context.Background(), []string{"--version"}, &out, &errb, Runtime{Version: c.in}); code != 0 || out.String() != c.want || errb.Len() != 0 {
+			t.Fatalf("%q: code %d out %q err %q", c.in, code, out.String(), errb.String())
+		}
+	}
+}

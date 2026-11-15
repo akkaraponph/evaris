@@ -43,7 +43,8 @@ container ran as root, which can hide permission-dependent failures.
 - No real agent has been evaluated. All runs are synthetic controls.
 - Compatibility with Invaris revisions other than the pinned one.
 
-Release readiness is not asserted. No publication, deployment, or push occurred.
+Release steps and the support matrix are in [release.md](release.md). Release
+readiness is not asserted until hosted CI passes on the release commit. No publication, deployment, or push occurred.
 
 Manifest benchmarks cover 10/100/1,000 files of 128 bytes each and report
 allocations and elapsed time. Results are local measurements without a pass target.

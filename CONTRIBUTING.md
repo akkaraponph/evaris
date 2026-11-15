@@ -1,7 +1,8 @@
 # Contributing to Evaris
 
-Evaris is in early development. The CLI supports validation, blind preparation,
-and external-result import, with tests for those boundaries. Discuss substantial behavior, configuration contracts, or new
+Evaris is in early (0.x) development. The CLI provides `validate`, `prepare`,
+`import`, `evaluate`, `report` and `compare`, with optional Invaris
+verification. Discuss substantial behavior, configuration contracts, or new
 dependencies in an issue before implementation.
 
 ## Local setup
@@ -35,10 +36,16 @@ No dependency installation or external account is currently required.
 Format changed Go files with `gofmt -w <file.go>` and run:
 
 ```sh
+test -z "$(gofmt -l cmd internal examples)"
 go build ./...
 go vet ./...
-go test ./...
+go test -race ./...
+GOTOOLCHAIN=local GOPROXY=off go test ./internal/acceptance -count=1
 ```
+
+Real-Invaris tests run only with `EVARIS_TEST_INVARIS` set to a binary built
+from the pinned revision; see [docs/invaris.md](docs/invaris.md). Release steps
+are in [docs/release.md](docs/release.md).
 
 Add tests for observable behavior and relevant failure cases, including malformed
 inputs, path escapes, incomplete evidence, and interrupted writes where applicable.

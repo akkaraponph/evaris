@@ -25,7 +25,7 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 	if e != nil {
 		return out, e
 	}
-	out = domain.Report{SchemaVersion: "evaris.report/v1alpha1", ID: id, CreatedAt: time.Now().UTC(), EvarisVersion: "dev", EvaluationIDs: []string{}, Cases: []domain.CaseSummary{}, Evidence: []domain.FileRef{}, Limitations: []string{"Configured checks do not establish general semantic correctness.", "Host metadata and origin are operator-reported; no performance improvement is established."}, Recommendations: []string{}}
+	out = domain.Report{SchemaVersion: "evaris.report/v1alpha1", ID: id, CreatedAt: time.Now().UTC(), EvarisVersion: s.version(), EvaluationIDs: []string{}, Cases: []domain.CaseSummary{}, Evidence: []domain.FileRef{}, Limitations: []string{"Configured checks do not establish general semantic correctness.", "Host metadata and origin are operator-reported; no performance improvement is established."}, Recommendations: []string{}}
 	chosen, _ := latest(es)
 	for _, v := range es {
 		out.EvaluationIDs = append(out.EvaluationIDs, v.ID)
@@ -130,4 +130,11 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 func marshalEvaluation(v domain.Evaluation) ([]byte, error) {
 	b, e := json.MarshalIndent(v, "", "  ")
 	return append(b, '\n'), e
+}
+
+func (s Service) version() string {
+	if s.Version == "" {
+		return "dev"
+	}
+	return s.Version
 }

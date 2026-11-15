@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.1.0 - not yet tagged
+
+First release. Date is set when the tag is created.
 
 - Validate versioned experiments, prepare blind baseline/specialist workspaces,
   and import externally produced outputs with frozen provenance.
@@ -17,3 +19,11 @@
   or unobserved conditions produce NOT_COMPARABLE reasons instead of claims;
   reports embed a comparison only when it covers exactly their evaluations.
 - Recommendations in reports name failed and missing gates.
+- `evaris --version`; release builds set the version with
+  `-ldflags "-X main.version=..."`, and reports record it as `evarisVersion`.
+- Supported platforms, record compatibility and reproducible builds are
+  documented in `docs/release.md`.
+
+Known limitations: no real agent has been evaluated (bundled runs are synthetic
+controls); command graders and Invaris guards are not sandboxed; Windows is not
+supported; only Invaris revision `ee92f3c` is supported.

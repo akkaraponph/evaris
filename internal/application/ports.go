@@ -40,6 +40,8 @@ type Repository interface {
 	LoadComparisons(context.Context, string) ([]domain.Comparison, error)
 }
 type Service struct {
+	// Version is recorded in reports as evarisVersion; empty means "dev".
+	Version        string
 	Repo           Repository
 	Grader         Grader
 	Verifier       Verifier

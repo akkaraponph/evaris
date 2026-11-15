@@ -117,3 +117,13 @@ func TestReportNamesVerificationGate(t *testing.T) {
 		}
 	}
 }
+
+func TestReportRecordsVersion(t *testing.T) {
+	for _, c := range []struct{ in, want string }{{"", "dev"}, {"v0.1.0", "v0.1.0"}} {
+		s := Service{Version: c.in, Repo: failingReportRepo{}, JSONReport: func(domain.Report) ([]byte, error) { return nil, nil }, MarkdownReport: func(domain.Report) ([]byte, error) { return nil, nil }}
+		r, e := s.Report(context.Background(), "store")
+		if e != nil || r.EvarisVersion != c.want {
+			t.Fatalf("version %q: got %q, %v", c.in, r.EvarisVersion, e)
+		}
+	}
+}
