@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.3.0 - not yet released
+
+Clearer command and import failures, and command criteria that tolerate build
+output. Records keep their v1alpha1 schema versions; the one new field is
+optional.
 
 - `command-exit` criteria accept an optional `snapshotExclude` list of relative
   paths, such as `.next`, that the scratch manifests skip. A build that leaves
@@ -11,6 +15,10 @@
 - `INVALID_CONFIG` for `agentClaim` lists the accepted values, and
   `REVISION_MISMATCH` on import says which identity field differs and what it
   must be. `docs/workflow.md` documents both fields.
+- Compatibility: an oracle that uses `snapshotExclude`, and a preparation frozen
+  from it, are refused by 0.2.0 and earlier as an unknown field. Oracles without
+  it, and every other record, are unchanged. Invaris support is still only the
+  pinned revision `ee92f3c`.
 
 ## 0.2.0 - 2026-11-15
 

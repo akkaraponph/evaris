@@ -2,7 +2,7 @@
 
 ## Supported platforms
 
-| Item | Supported in 0.2.x |
+| Item | Supported in 0.3.x |
 | --- | --- |
 | Go toolchain | 1.27.4 or newer (minimum in `go.mod`) |
 | Operating systems | Linux and macOS, amd64 and arm64 |
@@ -28,6 +28,9 @@ other version, unknown fields and duplicate keys:
 `v1alpha1` records carry no compatibility promise across minor 0.x releases. A
 release that changes a schema bumps its version, so older binaries refuse new
 records instead of misreading them. Evidence stores are not migrated.
+0.3.0 adds one optional field, `snapshotExclude` on `command-exit` criteria,
+within `evaris.oracle/v1alpha1`. Strict decoding makes 0.2.0 and earlier refuse
+an oracle or preparation that uses it; records without it are unchanged.
 
 ## Version string
 
@@ -43,7 +46,7 @@ From a clean checkout of the release tag, with Go 1.27.4:
 
 ```sh
 git status --porcelain   # must print nothing
-VERSION=v0.2.0
+VERSION=v0.3.0
 mkdir -p dist
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
   GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 \
@@ -82,8 +85,9 @@ or required CI check fails.
 There are no services or database migrations to deploy. Keep existing evidence
 stores intact when replacing a binary. To recover from a later release, reinstall
 the previous supported binary and retain stores written with newer schemas
-separately; older binaries may reject those records. 0.1.0 is the
-earlier release to roll back to. Commands and guards can have operator
+separately; older binaries may reject those records. 0.2.0 is the
+earlier release to roll back to; remove `snapshotExclude` from oracles and
+prepare again before using it, because it refuses that field. Commands and guards can have operator
 controlled side effects that replacing the Evaris binary cannot undo.
 
 Known limitations to state in release notes: bundled runs are synthetic
