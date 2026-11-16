@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -29,7 +30,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		return 0
 	}
 	if len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
-		fmt.Fprintln(stdout, "usage: evaris <validate|prepare|import|evaluate|report|compare> [flags] | --version")
+		fmt.Fprintln(stdout, "usage: evaris <init|validate|prepare|import|evaluate|report|compare> [flags] | --version")
 		return 0
 	}
 	if len(args) == 0 {
@@ -37,7 +38,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		return 2
 	}
 	name := args[0]
-	if name != "validate" && name != "prepare" && name != "import" && name != "evaluate" && name != "report" && name != "compare" {
+	if name != "init" && name != "validate" && name != "prepare" && name != "import" && name != "evaluate" && name != "report" && name != "compare" {
 		fmt.Fprintln(stderr, "INVALID_CONFIG: unknown subcommand")
 		return 2
 	}
@@ -46,7 +47,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 	var experiment, tasks, store, record, run, invarisPath, left, right, mode string
 	var allow bool
 	if name == "evaluate" || name == "report" {
-		f.StringVar(&store, "store", "", "absolute evidence store")
+		f.StringVar(&store, "store", "", "absolute evidence store (default .evaris/evidence)")
 		if name == "evaluate" {
 			f.StringVar(&run, "run", "", "run ID")
 			f.BoolVar(&allow, "allow-commands", false, "authorize trusted commands")
@@ -57,12 +58,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		f.StringVar(&right, "right", "", "absolute right evidence store")
 		f.StringVar(&mode, "mode", "", "arms or revisions")
 	} else if name == "import" {
-		f.StringVar(&store, "store", "", "absolute evidence store")
+		f.StringVar(&store, "store", "", "absolute evidence store (default .evaris/evidence)")
 		f.StringVar(&record, "record", "", "import request JSON")
-	} else {
-		f.StringVar(&experiment, "experiment", "", "experiment JSON file")
+	} else if name != "init" {
+		f.StringVar(&experiment, "experiment", ".evaris/experiment.json", "experiment JSON file (default .evaris/experiment.json)")
 		if name == "prepare" {
-			f.StringVar(&tasks, "tasks-root", "", "new absolute task root")
+			f.StringVar(&tasks, "tasks-root", "", "new absolute task root (default fresh directory under .evaris/tasks)")
 		}
 	}
 	// Parse one flag at a time so values beginning with '-' are not mistaken for flags.
@@ -88,9 +89,28 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		}
 		return 2
 	}
-	if f.NArg() != 0 || name == "validate" && experiment == "" || name == "prepare" && (experiment == "" || tasks == "") || name == "import" && (store == "" || record == "") || name == "evaluate" && (store == "" || run == "") || name == "report" && store == "" || name == "compare" && (left == "" || right == "" || mode != "arms" && mode != "revisions") {
+	if f.NArg() != 0 || name == "validate" && experiment == "" || name == "prepare" && (experiment == "" || seen["tasks-root"] && tasks == "") || name == "import" && record == "" || name == "evaluate" && run == "" || seen["store"] && store == "" || name == "compare" && (left == "" || right == "" || mode != "arms" && mode != "revisions") {
 		fmt.Fprintln(stderr, "INVALID_CONFIG: required flags missing")
 		return 2
+	}
+	// Resolve only default locations. Explicit paths keep their existing rules.
+	if name == "import" || name == "evaluate" || name == "report" {
+		if !seen["store"] {
+			var err error
+			store, err = filepath.Abs(filepath.Join(".evaris", "evidence"))
+			if err != nil {
+				fmt.Fprintln(stderr, application.AsFailure(err))
+				return 2
+			}
+		}
+	}
+	if name == "prepare" && !seen["tasks-root"] {
+		var err error
+		tasks, err = filepath.Abs(filepath.Join(".evaris", "tasks", rand.Text()))
+		if err != nil {
+			fmt.Fprintln(stderr, application.AsFailure(err))
+			return 2
+		}
 	}
 	if invarisPath != "" {
 		if !filepath.IsAbs(invarisPath) || runtime.Verifier == nil {
@@ -102,6 +122,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 	var out any
 	var e error
 	switch name {
+	case "init":
+		var config string
+		config, e = runtime.Service.Init(ctx, ".evaris")
+		out = struct {
+			ConfigPath string `json:"configPath"`
+		}{config}
 	case "validate":
 		p, err := runtime.Service.Validate(ctx, experiment)
 		e = err

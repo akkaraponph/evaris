@@ -28,6 +28,7 @@ type Plan struct {
 	Cases        []FrozenCase
 }
 type Repository interface {
+	Init(context.Context, string) (string, error)
 	Load(context.Context, string) (Plan, error)
 	Prepare(context.Context, Plan, string) (domain.Preparation, error)
 	Import(context.Context, string, string) (domain.Run, error)

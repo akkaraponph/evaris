@@ -98,3 +98,26 @@ and no semantic review, so it supports no agent or
 instruction-effectiveness claim; its grading was reproduced by an independent
 AI operator session, not by a second person; commands and Invaris guards are not
 sandboxed; and only the pinned Invaris revision is supported.
+
+## npm package release
+
+The package `evaris-cli` bundles the four native release
+binaries and requires Node.js 18 or newer. The unscoped npm name is owned by a
+different project. A maintainer must own the npm package name and configure trusted
+publishing for `refactorroom/evaris` and workflow `npm-release.yml`, permitting
+`npm publish`. The GitHub-hosted publishing job requires `id-token: write` and
+uses Node 24 with npm 11.5.1 or newer. Package versions are immutable.
+
+After the existing release checks pass on the exact tagged commit, manually run
+the **Publish npm package** workflow on the release tag. It builds the binaries,
+verifies their checksums and the native Linux version, tests the installed
+tarball, and publishes using OIDC. Before dispatch, review the exact workflow,
+CI results, and supported-platform testing. Run `node --test
+npm/evaris/test/*.test.js` locally. To assemble an already built set of release
+binaries and `dist/SHA256SUMS`, run `node scripts/package-npm.js vX.Y.Z dist`.
+The tarball is written to `dist/`; no npm publish occurs during assembly.
+
+After publishing, verify `npx evaris-cli@latest --version` and a
+global install in clean environments. For recovery, install an earlier pinned
+npm version, retain evidence, and consult the record compatibility notes above.
+Do not overwrite published package versions.

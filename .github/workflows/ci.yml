@@ -58,3 +58,12 @@ jobs:
         run: |
           export EVARIS_TEST_INVARIS="$RUNNER_TEMP/invaris"
           go test ./internal/adapters/invaris ./internal/acceptance -run 'TestRealInvaris|TestP1OfflineIntegration' -count=1 -v
+
+  npm-package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933edd5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '18'
+      - run: node --test npm/evaris/test/*.test.js

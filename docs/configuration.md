@@ -1,5 +1,31 @@
 # Experiment configuration
 
+Initialize a local workspace in the current project directory:
+
+```sh
+evaris init
+evaris validate
+```
+
+`init` creates `.evaris/experiment.json`, a sample fixture under `fixtures/`,
+`task.txt`, specialist instructions under `instructions/`, a private oracle under
+`reviewer/`, and an empty `tasks/` directory. The sample is an editable starting
+point, not a real agent measurement. Existing `.evaris` paths are never overwritten.
+Preparation creates `evidence/` as a committed store; initialization deliberately
+does not create an empty evidence store.
+
+`validate` and `prepare` default to `.evaris/experiment.json`. `import`,
+`evaluate`, and `report` default to `.evaris/evidence`. Defaults are relative to
+the current working directory; commands do not search parent directories.
+Explicit `--experiment`, `--store`, and `--tasks-root` flags retain their existing
+behavior. If you change `outputRoot`, supply the corresponding absolute `--store`
+for later commands. `compare` still requires explicit `--left` and `--right` stores.
+
+All configuration paths resolve relative to the experiment file, including
+fixtures, task text, instructions, private oracles, and `outputRoot`. There is no
+automatic migration of existing experiments. Validation remains read-only and
+never creates a workspace.
+
 The current executable supports:
 
 ```sh

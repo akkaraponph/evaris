@@ -1,0 +1,11 @@
+{
+  "name": "evaris-cli",
+  "version": "0.0.0",
+  "description": "Reproducible agent and skill evaluation CLI",
+  "license": "Apache-2.0",
+  "repository": { "type": "git", "url": "git+https://github.com/refactorroom/evaris.git" },
+  "bin": { "evaris": "bin/evaris.js" },
+  "engines": { "node": ">=18" },
+  "files": ["bin/evaris.js", "binaries/", "README.md", "LICENSE"],
+  "publishConfig": { "access": "public" }
+}

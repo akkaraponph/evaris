@@ -1,5 +1,33 @@
 # Preparation and external-result import
 
+For a local project, start with an installed Evaris binary:
+
+```sh
+evaris init
+# Edit .evaris/experiment.json and its inputs for your evaluation.
+evaris validate
+evaris prepare
+# Run the external agent separately, then author an import request.
+evaris import --record /absolute/path/to/import.json
+evaris evaluate --run RUN_ID
+evaris report
+```
+
+Run these commands from the same project directory. Initialization refuses an
+existing `.evaris` path. Preparation chooses a new directory under `.evaris/tasks/`
+for each invocation and preserves earlier workspaces. Its JSON output identifies
+the exact tasksRoot and task workspace paths. Supply `--tasks-root` to use another
+new absolute task root. The default evidence store is `.evaris/evidence`.
+
+The entire `.evaris` directory contains private configuration and evidence;
+give the external agent only its individual prepared task workspace. Reviewer
+oracles and the experiment config are not copied into task workspaces. Keep
+`.evaris/` out of version control (this repository already ignores it); copy
+reusable examples to a tracked example directory deliberately. Existing experiment
+files and explicit paths continue to work without initialization.
+
+## Running the repository examples
+
 Run from the repository root with Go 1.27.4 or newer:
 
 ```sh

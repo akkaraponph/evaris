@@ -1,3 +1,5 @@
+![Evaris, reproducible agent and skill evaluation](assets/banners/github-readme-light-1600x480.svg)
+
 # Evaris
 
 A standalone, open-source Agent & Skill Evaluation Framework written in Go.
@@ -26,6 +28,25 @@ revision comparisons ([comparison.md](docs/comparison.md)). Linux and macOS are
 supported; Windows is not. See [releases and support](docs/release.md),
 [workflow](docs/workflow.md), [pilot runbook](docs/pilot.md), [configuration](docs/configuration.md) and the
 [verification status](docs/p0-readiness.md).
+
+## npm distribution
+
+The npm package is prepared for publication as `evaris-cli` from
+[refactorroom/evaris](https://github.com/refactorroom/evaris). Once published,
+Node.js 18 or newer can run the latest release with:
+
+```sh
+npx evaris-cli@latest --version
+npm install -g evaris-cli@latest  # install or update globally
+evaris --help
+```
+
+For a project dependency, use `npm install --save-dev evaris-cli@latest`.
+The unscoped `evaris` npm name belongs to a different package. npm manages the
+installation; Evaris does not provide an `update` subcommand. The package bundles
+Linux and macOS binaries for x64 and arm64 and does not download binaries at run
+time. Preserve evidence when changing versions; older binaries may reject records
+written by newer releases. Pin an earlier npm version to roll back.
 
 ## Build and verify
 
