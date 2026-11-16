@@ -102,7 +102,7 @@ sandboxed; and only the pinned Invaris revision is supported.
 ## npm package release
 
 The package `evaris-cli` bundles the four native release
-binaries and requires Node.js 18 or newer. The unscoped npm name is owned by a
+binaries and requires Node.js 18 or newer. The npm name `evaris` is owned by a
 different project. A maintainer must own the npm package name and configure trusted
 publishing for `refactorroom/evaris` and workflow `npm-release.yml`, permitting
 `npm publish`. The GitHub-hosted publishing job requires `id-token: write` and

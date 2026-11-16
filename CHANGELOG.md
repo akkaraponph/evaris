@@ -1,11 +1,13 @@
 # Changelog
 
-## 0.3.0 - not yet released
+## 0.3.0 - 2026-11-16
 
-Clearer command and import failures, and command criteria that tolerate build
-output. Records keep their v1alpha1 schema versions; the one new field is
-optional.
+Workspace initialization, npm distribution, clearer command and import failures,
+and command criteria that tolerate build output. Records keep their v1alpha1
+schema versions; the one new field is optional.
 
+- `evaris init` creates a local workspace, and common commands use local defaults.
+- The `evaris-cli` npm package distributes native Linux and macOS binaries.
 - `command-exit` criteria accept an optional `snapshotExclude` list of relative
   paths, such as `.next`, that the scratch manifests skip. A build that leaves
   more than 2000 entries no longer turns a passing command into an `ERROR`.
