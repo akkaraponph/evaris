@@ -88,7 +88,11 @@ func (s Service) grade(ctx context.Context, f FrozenRun, c domain.Criterion) (r 
 		}
 	}
 	r.Required = c.Required
-	r.Message = ""
+	// Only catalogue messages survive: free text from a grader could carry
+	// reviewer-private content or paths that differ between evaluations.
+	if !domain.ValidGraderMessage(r.Message) {
+		r.Message = ""
+	}
 	if r.Evidence == nil {
 		r.Evidence = []domain.FileRef{}
 	}

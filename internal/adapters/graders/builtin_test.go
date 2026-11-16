@@ -7,7 +7,6 @@ import (
 	"github.com/akkaraponph/evaris/internal/domain"
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -88,8 +87,8 @@ func TestCommandSnapshotLimitIsExplainedAndExcludable(t *testing.T) {
 	f := application.FrozenRun{SnapshotRoot: t.TempDir(), AllowCommands: true}
 
 	r, _ := (Builtin{}).Grade(context.Background(), f, c)
-	if r.Status != "ERROR" || r.Reason != "LIMIT_EXCEEDED" ||
-		!strings.Contains(r.Message, "after the command (command exited 0)") || !strings.Contains(r.Message, "snapshotExclude") {
+	want := "scratch snapshot after the command (command exited 0): LIMIT_EXCEEDED (entries); list generated output such as .next in snapshotExclude"
+	if r.Status != "ERROR" || r.Reason != "LIMIT_EXCEEDED" || r.Message != want || !domain.ValidGraderMessage(r.Message) {
 		t.Fatalf("result %+v", r)
 	}
 
@@ -103,7 +102,7 @@ func TestCommandFailureMessages(t *testing.T) {
 	f := application.FrozenRun{SnapshotRoot: t.TempDir(), AllowCommands: true}
 	r, _ := (Builtin{}).Grade(context.Background(), f, domain.Criterion{ID: "slow", Kind: "command-exit", Expected: json.RawMessage("0"),
 		Command: &domain.Command{Program: "/bin/sh", Args: []string{"-c", "sleep 5"}, EnvAllowlist: []string{}, TimeoutSeconds: 1}})
-	if r.Reason != "TIMEOUT" || !strings.Contains(r.Message, "timeout of 1 seconds") {
+	if r.Reason != "TIMEOUT" || r.Message != "command: TIMEOUT; raise timeoutSeconds or shorten the command" || !domain.ValidGraderMessage(r.Message) {
 		t.Fatalf("result %+v", r)
 	}
 }

@@ -10,8 +10,11 @@ optional.
   paths, such as `.next`, that the scratch manifests skip. A build that leaves
   more than 2000 entries no longer turns a passing command into an `ERROR`.
 - A command criterion that ends in `ERROR` now carries the specific reason
-  (`LIMIT_EXCEEDED`, `PATH_UNSAFE`) instead of `IO_ERROR`, and a `message`
-  that names the failing step and the command's exit code.
+  (`LIMIT_EXCEEDED`, `PATH_UNSAFE`) instead of `IO_ERROR`, and a `message` in
+  `evaluation.json` that names the failing step, the command's exit code, the
+  kind of limit and a fix. Messages come from a fixed catalogue with no paths,
+  command text or oracle values; any other grader text is still cleared.
+  `report.md` does not show them yet.
 - `INVALID_CONFIG` for `agentClaim` lists the accepted values, and
   `REVISION_MISMATCH` on import says which identity field differs and what it
   must be. `docs/workflow.md` documents both fields.

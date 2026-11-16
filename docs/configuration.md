@@ -43,7 +43,14 @@ refuse the field.
 ```
 
 When a command criterion ends in `ERROR`, its `message` in `evaluation.json`
-says which step failed and how: for example `scratch snapshot after the command
-(command exited 0): LIMIT_EXCEEDED: entries: more than 2000 under the snapshot
-root`. The reason is the specific code (`LIMIT_EXCEEDED`, `PATH_UNSAFE`,
-`TIMEOUT`), not a generic `IO_ERROR`.
+says which step failed and how, for example `scratch snapshot after the command
+(command exited 0): LIMIT_EXCEEDED (entries); list generated output such as
+.next in snapshotExclude`. The reason is the specific code (`LIMIT_EXCEEDED`,
+`PATH_UNSAFE`, `TIMEOUT`), not a generic `IO_ERROR`.
+
+Messages come from a fixed catalogue: the failing step, the command's exit
+code, the reason code, the kind of limit and a fixed hint. They never contain
+paths, command text, output or oracle values, so they cannot expose
+reviewer-private content and are the same each time a run is evaluated. Any
+other grader text is cleared before the evaluation is stored. `report.md` does
+not show messages yet; read them from `evaluation.json`.

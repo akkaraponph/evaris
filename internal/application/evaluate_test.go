@@ -44,3 +44,29 @@ func TestUnauthorizedChanges(t *testing.T) {
 		}
 	}
 }
+
+type messageGrader struct{ message string }
+
+func (g messageGrader) Grade(_ context.Context, _ FrozenRun, c domain.Criterion) (domain.GraderResult, []Blob) {
+	return domain.GraderResult{CriterionID: c.ID, Status: "ERROR", Reason: "LIMIT_EXCEEDED", Message: g.message, Evidence: []domain.FileRef{}, GraderVersion: "builtin/1"}, nil
+}
+
+// The evaluation keeps catalogue messages and clears any other grader text,
+// which could carry reviewer-private content or scratch paths.
+func TestGradeKeepsOnlyCatalogueMessages(t *testing.T) {
+	exit := 0
+	kept := domain.CommandMessage(domain.StepSnapshotAfter, true, &exit, "LIMIT_EXCEEDED", domain.LimitEntries)
+	for msg, want := range map[string]string{
+		kept:                              kept,
+		"expected value is secret-answer": "",
+		kept + " /private/var/folders/x/evaris-grade-123":   "",
+		"command: TIMEOUT; see /reviewer/oracle.json":       "",
+		"scratch snapshot after the command: SECRET_REASON": "",
+	} {
+		s := Service{Grader: messageGrader{msg}}
+		r, _ := s.grade(context.Background(), FrozenRun{}, domain.Criterion{ID: "scan", Required: true})
+		if r.Message != want {
+			t.Errorf("message %q became %q, want %q", msg, r.Message, want)
+		}
+	}
+}
