@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- `command-exit` criteria accept an optional `snapshotExclude` list of relative
+  paths, such as `.next`, that the scratch manifests skip. A build that leaves
+  more than 2000 entries no longer turns a passing command into an `ERROR`.
+- A command criterion that ends in `ERROR` now carries the specific reason
+  (`LIMIT_EXCEEDED`, `PATH_UNSAFE`) instead of `IO_ERROR`, and a `message`
+  that names the failing step and the command's exit code.
+- `INVALID_CONFIG` for `agentClaim` lists the accepted values, and
+  `REVISION_MISMATCH` on import says which identity field differs and what it
+  must be. `docs/workflow.md` documents both fields.
+
 ## 0.2.0 - 2026-11-15
 
 - Runbook for real external-agent evaluations (`docs/pilot.md`); documented

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"github.com/akkaraponph/evaris/internal/adapters/fsrepo"
 	"github.com/akkaraponph/evaris/internal/adapters/process"
@@ -201,7 +202,7 @@ func (g Builtin) command(ctx context.Context, f application.FrozenRun, c domain.
 			return os.MkdirAll(target, 0700)
 		}
 		if d.Type()&os.ModeSymlink != 0 {
-			return fmt.Errorf("link")
+			return &domain.Failure{Code: "PATH_UNSAFE", Path: filepath.ToSlash(rel) + " is a symbolic link"}
 		}
 		b, e := os.ReadFile(p)
 		if e != nil {
@@ -213,19 +214,50 @@ func (g Builtin) command(ctx context.Context, f application.FrozenRun, c domain.
 		}
 		return os.WriteFile(target, b, info.Mode().Perm())
 	})
-	if e != nil || c.Command == nil {
-		r.Reason = "IO_ERROR"
+	if c.Command == nil {
+		r.Reason, r.Message = "INVALID_CONFIG", "command-exit criterion has no command"
 		return r, nil
 	}
-	before, be := fsrepo.Snapshot(ctx, scratch)
+	if e != nil {
+		r.Reason, r.Message = failureCode(e, "IO_ERROR"), "copy the snapshot into scratch: "+e.Error()
+		return r, nil
+	}
+	before, be := fsrepo.SnapshotExcluding(ctx, scratch, c.SnapshotExclude)
 	result := process.Run(ctx, scratch, *c.Command)
-	after, ae := fsrepo.Snapshot(context.WithoutCancel(ctx), scratch)
+	after, ae := fsrepo.SnapshotExcluding(context.WithoutCancel(ctx), scratch, c.SnapshotExclude)
 	cleanupErr := os.RemoveAll(scratch)
 	if be != nil || ae != nil || cleanupErr != nil {
-		if ctx.Err() != nil {
+		// Say which step failed and that the command itself finished, so a
+		// passing command is not mistaken for a failing one.
+		exit := "did not finish"
+		if result.ExitCode != nil {
+			exit = fmt.Sprintf("exited %d", *result.ExitCode)
+		}
+		switch {
+		case ctx.Err() != nil:
 			result.Reason = "CANCELED"
-		} else {
-			result.Reason = "IO_ERROR"
+		case be != nil:
+			result.Reason, r.Message = failureCode(be, "IO_ERROR"), "scratch snapshot before the command: "+be.Error()
+		case ae != nil:
+			result.Reason = failureCode(ae, "IO_ERROR")
+			r.Message = "scratch snapshot after the command (command " + exit + "): " + ae.Error()
+			if result.Reason == "LIMIT_EXCEEDED" {
+				r.Message += "; list generated output such as .next in snapshotExclude"
+			}
+		default:
+			result.Reason, r.Message = "IO_ERROR", "remove scratch: "+cleanupErr.Error()
+		}
+	}
+	if r.Message == "" {
+		switch result.Reason {
+		case "TIMEOUT":
+			r.Message = fmt.Sprintf("command exceeded its timeout of %d seconds", timeoutOf(*c.Command))
+		case "LIMIT_EXCEEDED":
+			r.Message = "command output exceeded 64 KiB on stdout or stderr"
+		case "TOOL_MISSING":
+			r.Message = "program " + c.Command.Program + " is not readable"
+		case "IO_ERROR":
+			r.Message = "command was killed by a signal, left processes behind, or could not be started"
 		}
 	}
 	r.Reason = result.Reason
@@ -247,6 +279,22 @@ func (g Builtin) command(ctx context.Context, f application.FrozenRun, c domain.
 	name := "evidence/" + c.ID + ".json"
 	r.Evidence = []domain.FileRef{{Path: name, SHA256: domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(data))), Bytes: int64(len(data))}}
 	return r, []application.Blob{{Path: name, Data: data}}
+}
+
+// failureCode is the reason a domain.Failure carries, or fallback.
+func failureCode(e error, fallback domain.Reason) domain.Reason {
+	var f *domain.Failure
+	if errors.As(e, &f) {
+		return f.Code
+	}
+	return fallback
+}
+
+func timeoutOf(c domain.Command) int {
+	if c.TimeoutSeconds == 0 {
+		return 30
+	}
+	return c.TimeoutSeconds
 }
 
 // Normalize decimal notation without allocating a huge power of ten from an

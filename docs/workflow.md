@@ -66,6 +66,11 @@ Create a JSON import request outside agent workspaces. Required fields:
 Replace placeholders with the actual preparation output. Relative input paths
 resolve against the import request directory. All observed keys are required;
 null means unavailable, while an observed empty instruction/tool list is [].
+`agentClaim` is null or one of `completed`, `not-completed` and `unknown`: what
+the agent said about its own work, not whether the work is correct.
+`sourceRevision` is the case's starting revision from the experiment file, not
+the commit the agent delivered; a mismatch fails with `REVISION_MISMATCH` and
+names the expected value.
 Use origin synthetic-control for authored controls, not external-agent. Evaris
 cannot attest the truth of host metadata or origin labels.
 

@@ -7,6 +7,7 @@ import (
 	"github.com/akkaraponph/evaris/internal/domain"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -74,5 +75,35 @@ func TestGreenSuiteHiddenViolation(t *testing.T) {
 		if tc.exact == "FAIL" && a.Final != "FAIL" || tc.exact == "PASS" && a.Final != "PASS" {
 			t.Fatalf("green suite hid violation: %+v", a)
 		}
+	}
+}
+
+// A build that leaves thousands of files must not turn a passing command into
+// a bare IO_ERROR: the reason names the limit, the message says the command
+// finished, and snapshotExclude keeps the output out of the snapshots.
+func TestCommandSnapshotLimitIsExplainedAndExcludable(t *testing.T) {
+	build := "mkdir -p .next && i=0; while [ $i -le 2000 ]; do : > .next/f$i; i=$((i+1)); done"
+	c := domain.Criterion{ID: "scan", Kind: "command-exit", Required: true, Expected: json.RawMessage("0"),
+		Command: &domain.Command{Program: "/bin/sh", Args: []string{"-c", build}, EnvAllowlist: []string{}}}
+	f := application.FrozenRun{SnapshotRoot: t.TempDir(), AllowCommands: true}
+
+	r, _ := (Builtin{}).Grade(context.Background(), f, c)
+	if r.Status != "ERROR" || r.Reason != "LIMIT_EXCEEDED" ||
+		!strings.Contains(r.Message, "after the command (command exited 0)") || !strings.Contains(r.Message, "snapshotExclude") {
+		t.Fatalf("result %+v", r)
+	}
+
+	c.SnapshotExclude = []string{".next"}
+	if r, _ = (Builtin{}).Grade(context.Background(), f, c); r.Status != "PASS" || r.Message != "" {
+		t.Fatalf("excluded build output: %+v", r)
+	}
+}
+
+func TestCommandFailureMessages(t *testing.T) {
+	f := application.FrozenRun{SnapshotRoot: t.TempDir(), AllowCommands: true}
+	r, _ := (Builtin{}).Grade(context.Background(), f, domain.Criterion{ID: "slow", Kind: "command-exit", Expected: json.RawMessage("0"),
+		Command: &domain.Command{Program: "/bin/sh", Args: []string{"-c", "sleep 5"}, EnvAllowlist: []string{}, TimeoutSeconds: 1}})
+	if r.Reason != "TIMEOUT" || !strings.Contains(r.Message, "timeout of 1 seconds") {
+		t.Fatalf("result %+v", r)
 	}
 }

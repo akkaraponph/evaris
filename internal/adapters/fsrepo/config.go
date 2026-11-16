@@ -383,12 +383,24 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 					err = fail("INVALID_CONFIG", g.ID)
 					return
 				}
+				seenExclude := map[string]bool{}
+				for _, x := range g.SnapshotExclude {
+					if !domain.Relative(x) || seenExclude[x] || len(g.SnapshotExclude) > 64 {
+						err = fail("INVALID_CONFIG", g.ID+": snapshotExclude entries must be unique relative paths, at most 64")
+						return
+					}
+					seenExclude[x] = true
+				}
 			default:
 				err = fail("INVALID_CONFIG", g.ID)
 				return
 			}
 		}
 		for _, g := range fc.Oracle.Criteria {
+			if g.SnapshotExclude != nil && g.Kind != "command-exit" {
+				err = fail("INVALID_CONFIG", g.ID+": snapshotExclude is only valid for command-exit")
+				return
+			}
 			if g.Command != nil {
 				seenEnv := map[string]bool{}
 				for _, key := range g.Command.EnvAllowlist {

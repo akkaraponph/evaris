@@ -94,7 +94,7 @@ func parseImport(b []byte) (q domain.ImportRequest, err error) {
 		return q, fail("INVALID_CONFIG", "metadata times")
 	}
 	if o.AgentClaim != nil && *o.AgentClaim != "completed" && *o.AgentClaim != "not-completed" && *o.AgentClaim != "unknown" {
-		return q, fail("INVALID_CONFIG", "agentClaim")
+		return q, fail("INVALID_CONFIG", `agentClaim must be "completed", "not-completed" or "unknown"`)
 	}
 	return
 }
@@ -137,8 +137,13 @@ func (r Repository) Import(ctx context.Context, store, requestPath string) (out 
 			fc = c
 		}
 	}
-	if q.ConfigDigest != p.ConfigDigest || prep.ConfigDigest != q.ConfigDigest || q.FixtureDigest != task.FixtureDigest || q.SourceRevision != fc.Case.SourceRevision {
-		return out, fail("REVISION_MISMATCH", "import identity")
+	switch {
+	case q.ConfigDigest != p.ConfigDigest || prep.ConfigDigest != q.ConfigDigest:
+		return out, fail("REVISION_MISMATCH", "import identity: configDigest must equal the prepared configuration digest "+string(prep.ConfigDigest))
+	case q.FixtureDigest != task.FixtureDigest:
+		return out, fail("REVISION_MISMATCH", "import identity: fixtureDigest must equal the prepared fixture digest "+string(task.FixtureDigest))
+	case q.SourceRevision != fc.Case.SourceRevision:
+		return out, fail("REVISION_MISMATCH", "import identity: sourceRevision must be the case's starting revision "+fc.Case.SourceRevision+", not the delivered commit")
 	}
 	var privatePaths []string
 	privateBytes, e := readFile(filepath.Join(p.ConfigDir, ".evaris-private-sources.json"))

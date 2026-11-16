@@ -7,6 +7,7 @@ import (
 	"github.com/akkaraponph/evaris/internal/domain"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -480,5 +481,32 @@ func TestPrepareOracleSentinel(t *testing.T) {
 				t.Fatal("leaked reviewer sentinel")
 			}
 		}
+	}
+}
+func TestImportErrorsNameTheExpectedValue(t *testing.T) {
+	config, store, p := prepared(t)
+	path := request(t, p, config)
+	b, _ := os.ReadFile(path)
+	var q map[string]any
+	json.Unmarshal(b, &q)
+	q["sourceRevision"] = "delivered-commit"
+	b, _ = json.Marshal(q)
+	os.WriteFile(path, b, 0600)
+	_, e := (Repository{}).Import(context.Background(), store, path)
+	if e == nil || !strings.Contains(e.Error(), "starting revision") || !strings.Contains(e.Error(), "not the delivered commit") {
+		t.Fatalf("error %v", e)
+	}
+	b, _ = os.ReadFile(request(t, p, config))
+	q = map[string]any{}
+	json.Unmarshal(b, &q)
+	observed, _ := q["observed"].(map[string]any)
+	if observed == nil {
+		observed = map[string]any{}
+		q["observed"] = observed
+	}
+	observed["agentClaim"] = "done"
+	b, _ = json.Marshal(q)
+	if _, e := parseImport(b); e == nil || !strings.Contains(e.Error(), `"not-completed"`) {
+		t.Fatalf("agentClaim error %v", e)
 	}
 }

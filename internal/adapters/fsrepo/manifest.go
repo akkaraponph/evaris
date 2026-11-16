@@ -3,15 +3,26 @@ package fsrepo
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/akkaraponph/evaris/internal/domain"
 	"io"
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+// maxSnapshotEntries bounds the entries Snapshot walks.
+const maxSnapshotEntries = 2000
 
 // Snapshot identifies bounded regular-file contents without following symbolic links.
 func Snapshot(ctx context.Context, root string) (domain.Manifest, error) {
+	return SnapshotExcluding(ctx, root, nil)
+}
+
+// SnapshotExcluding is Snapshot that skips the declared relative paths and
+// everything below them. Skipped entries count toward no limit.
+func SnapshotExcluding(ctx context.Context, root string, exclude []string) (domain.Manifest, error) {
 	if e := safe(root); e != nil {
 		return nil, e
 	}
@@ -28,15 +39,21 @@ func Snapshot(ctx context.Context, root string) (domain.Manifest, error) {
 		if p == root {
 			return nil
 		}
-		entries++
-		if entries > 2000 {
-			return fail("LIMIT_EXCEEDED", "entries")
-		}
 		rel, e := filepath.Rel(root, p)
 		if e != nil {
 			return e
 		}
 		rel = filepath.ToSlash(rel)
+		if excluded(rel, exclude) {
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		entries++
+		if entries > maxSnapshotEntries {
+			return fail("LIMIT_EXCEEDED", fmt.Sprintf("entries: more than %d under the snapshot root", maxSnapshotEntries))
+		}
 		if !domain.Relative(rel) {
 			return fail("PATH_UNSAFE", rel)
 		}
@@ -96,6 +113,15 @@ func Snapshot(ctx context.Context, root string) (domain.Manifest, error) {
 	})
 	return manifest, e
 }
+func excluded(rel string, exclude []string) bool {
+	for _, x := range exclude {
+		if rel == x || strings.HasPrefix(rel, x+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func manifestDigest(m domain.Manifest) domain.Digest {
 	b, _ := json.MarshalIndent(m, "", "  ")
 	return digest(append(b, '\n'))

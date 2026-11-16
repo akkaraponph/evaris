@@ -74,6 +74,10 @@ type Criterion struct {
 	Path     string          `json:"path,omitempty"`
 	Expected json.RawMessage `json:"expected,omitempty"`
 	Command  *Command        `json:"command,omitempty"`
+	// SnapshotExclude lists relative paths, such as build output, that the
+	// command-exit grader leaves out of its before and after scratch
+	// snapshots. Only command-exit criteria accept it.
+	SnapshotExclude []string `json:"snapshotExclude,omitempty"`
 }
 type Command struct {
 	Program        string   `json:"program"`

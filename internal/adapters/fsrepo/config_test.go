@@ -182,3 +182,32 @@ func TestCopyDoesNotShareInodes(t *testing.T) {
 		t.Fatal("shared inode")
 	}
 }
+func TestSnapshotExcludeValidation(t *testing.T) {
+	for name, tc := range map[string]struct {
+		criterion string
+		ok        bool
+	}{
+		"command with exclude": {`{"id":"scan","kind":"command-exit","required":true,"expected":0,"command":{"program":"/bin/true","args":[],"envAllowlist":[]},"snapshotExclude":[".next","node_modules/.vite"]}`, true},
+		"absolute exclude":     {`{"id":"scan","kind":"command-exit","required":true,"expected":0,"command":{"program":"/bin/true","args":[],"envAllowlist":[]},"snapshotExclude":["/tmp"]}`, false},
+		"duplicate exclude":    {`{"id":"scan","kind":"command-exit","required":true,"expected":0,"command":{"program":"/bin/true","args":[],"envAllowlist":[]},"snapshotExclude":[".next",".next"]}`, false},
+		"exclude on exact":     {`{"id":"result","kind":"exact","required":true,"path":"result.txt","expected":"approved\n","snapshotExclude":[".next"]}`, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.CopyFS(dir, os.DirFS("../../../testdata/valid")); err != nil {
+				t.Fatal(err)
+			}
+			oracle := `{"schemaVersion":"evaris.oracle/v1alpha1","criteria":[` + tc.criterion + `]}`
+			if err := os.WriteFile(filepath.Join(dir, "reviewer", "oracle.json"), []byte(oracle), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, e := (Repository{}).Load(context.Background(), filepath.Join(dir, "experiment.json"))
+			if (e == nil) != tc.ok || (e != nil && !strings.HasPrefix(e.Error(), "INVALID_CONFIG: scan") && !strings.HasPrefix(e.Error(), "INVALID_CONFIG: result")) {
+				t.Fatalf("Load error = %v, want ok=%v", e, tc.ok)
+			}
+		})
+	}
+}
