@@ -9,7 +9,8 @@
 | Windows | Not supported; the process adapter uses Unix process groups and does not build for Windows |
 | Invaris (optional) | `ee92f3c`, v0.3.0, v0.4.0 and 0.5.x; see [compatibility](invaris.md#tested-compatibility) |
 
-CI runs build, vet, race tests and the offline acceptance suite on
+CI builds `main` only (pull requests to `main` and pushes to `main`). It runs
+build, vet, race tests and the offline acceptance suite on
 `ubuntu-latest` and `macos-latest`, plus the real-Invaris job on both. Platforms
 not exercised by CI are cross-compiled only.
 

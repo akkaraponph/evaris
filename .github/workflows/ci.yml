@@ -1,5 +1,12 @@
 name: Go checks
-on: [push, pull_request]
+# CI builds main only: pull requests to main before merge and pushes to main,
+# the commits a release tag points to. Other branches are not built.
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:

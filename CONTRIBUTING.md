@@ -44,7 +44,9 @@ GOTOOLCHAIN=local GOPROXY=off go test ./internal/acceptance -count=1
 ```
 
 Real-Invaris tests run only with `EVARIS_TEST_INVARIS` set to a binary built
-from the pinned revision; see [docs/invaris.md](docs/invaris.md). Release steps
+from a tested Invaris release; see [docs/invaris.md](docs/invaris.md). CI builds
+`main` only: it runs for pull requests to `main` and pushes to `main`, so run
+these checks locally on other branches. Release steps
 are in [docs/release.md](docs/release.md).
 
 Add tests for observable behavior and relevant failure cases, including malformed
