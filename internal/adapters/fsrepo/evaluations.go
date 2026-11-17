@@ -130,7 +130,7 @@ func (r Repository) LoadEvaluations(ctx context.Context, store string) (es []dom
 }
 func (r Repository) SaveReport(ctx context.Context, store string, v domain.Report, j, m []byte) (err error) {
 	expected, e := jsonBytes(v)
-	if e != nil || !bytes.Equal(expected, j) || v.SchemaVersion != "evaris.report/v1alpha1" {
+	if e != nil || !bytes.Equal(expected, j) || v.SchemaVersion != domain.ReportSchemaVersion {
 		return fail("INVALID_CONFIG", "report JSON")
 	}
 	if !recordID.MatchString(v.ID) {
@@ -151,4 +151,34 @@ func (r Repository) SaveReport(ctx context.Context, store string, v domain.Repor
 		return
 	}
 	return tx.seal(ctx)
+}
+
+// ReadEvaluationEvidence reads one evidence file listed by a committed
+// evaluation. The whole store is validated first, then the file is checked
+// against its recorded digest and size.
+func (r Repository) ReadEvaluationEvidence(ctx context.Context, store, evaluationID, path string) ([]byte, error) {
+	if !recordID.MatchString(evaluationID) {
+		return nil, fail("INVALID_CONFIG", "evaluation ID")
+	}
+	es, _, err := r.LoadEvaluations(ctx, store)
+	if err != nil {
+		return nil, err
+	}
+	for _, v := range es {
+		if v.ID != evaluationID {
+			continue
+		}
+		for _, ref := range evaluationRefs(v) {
+			if ref.Path != path {
+				continue
+			}
+			b, e := readFile(filepath.Join(store, "evaluations", v.ID, filepath.FromSlash(ref.Path)))
+			if e != nil || digest(b) != ref.SHA256 || int64(len(b)) != ref.Bytes {
+				return nil, fail("EVIDENCE_CORRUPT", "evaluation evidence")
+			}
+			return b, nil
+		}
+		return nil, fail("INVALID_CONFIG", "evidence path")
+	}
+	return nil, fail("UNKNOWN_EVALUATION", evaluationID)
 }

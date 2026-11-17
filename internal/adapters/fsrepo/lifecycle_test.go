@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"github.com/akkaraponph/evaris/internal/domain"
 	"os"
 	"path/filepath"
@@ -508,5 +509,73 @@ func TestImportErrorsNameTheExpectedValue(t *testing.T) {
 	b, _ = json.Marshal(q)
 	if _, e := parseImport(b); e == nil || !strings.Contains(e.Error(), `"not-completed"`) {
 		t.Fatalf("agentClaim error %v", e)
+	}
+}
+
+// preparedWithLimit is prepared with limits.maxEntries set in the experiment.
+func preparedWithLimit(t *testing.T, limit int) (config, store string, p domain.Preparation) {
+	t.Helper()
+	config, tasks := fixture(t)
+	b, _ := os.ReadFile(config)
+	var exp map[string]any
+	json.Unmarshal(b, &exp)
+	if limit > 0 {
+		exp["limits"] = map[string]any{"maxEntries": limit}
+	}
+	b, _ = json.Marshal(exp)
+	os.WriteFile(config, b, 0600)
+	plan, e := (Repository{}).Load(context.Background(), config)
+	if e != nil {
+		t.Fatal(e)
+	}
+	p, e = (Repository{}).Prepare(context.Background(), plan, tasks)
+	if e != nil {
+		t.Fatal(e)
+	}
+	return config, plan.OutputRoot, p
+}
+
+func TestImportWithRaisedLimit(t *testing.T) {
+	for _, tc := range []struct {
+		limit int
+		ok    bool
+	}{{3000, true}, {0, false}} {
+		config, store, p := preparedWithLimit(t, tc.limit)
+		path := request(t, p, config)
+		ws := filepath.Join(p.TasksRoot, p.Tasks[0].Workspace)
+		os.WriteFile(filepath.Join(ws, "result.txt"), []byte("approved\n"), 0600)
+		os.MkdirAll(filepath.Join(ws, "out"), 0700)
+		for i := range 2500 {
+			os.WriteFile(filepath.Join(ws, "out", fmt.Sprintf("f%d", i)), nil, 0600)
+		}
+		run, e := (Repository{}).Import(context.Background(), store, path)
+		if (e == nil) != tc.ok {
+			t.Fatalf("limit %d: import error %v", tc.limit, e)
+		}
+		if !tc.ok {
+			if !strings.Contains(e.Error(), "more than 2000") {
+				t.Fatalf("limit error %v", e)
+			}
+			continue
+		}
+		// A stored run with more than the default entries stays readable.
+		if _, e := (Repository{}).LoadRun(context.Background(), store, run.ID); e != nil {
+			t.Fatalf("reload: %v", e)
+		}
+	}
+}
+
+func TestLimitsValidation(t *testing.T) {
+	for _, limit := range []int{-1, domain.MaxEntriesCeiling + 1} {
+		config, _ := fixture(t)
+		b, _ := os.ReadFile(config)
+		var exp map[string]any
+		json.Unmarshal(b, &exp)
+		exp["limits"] = map[string]any{"maxEntries": limit}
+		b, _ = json.Marshal(exp)
+		os.WriteFile(config, b, 0600)
+		if _, e := (Repository{}).Load(context.Background(), config); e == nil {
+			t.Fatalf("limit %d accepted", limit)
+		}
 	}
 }

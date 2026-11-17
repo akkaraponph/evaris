@@ -39,7 +39,7 @@ func (t *transaction) seal(ctx context.Context) error {
 	if e := ctx.Err(); e != nil {
 		return e
 	}
-	m, e := Snapshot(ctx, t.root)
+	m, e := snapshotStored(ctx, t.root)
 	if e != nil {
 		return e
 	}
@@ -54,7 +54,7 @@ func verifyRecord(ctx context.Context, root string) error {
 	if e != nil {
 		return fail("EVIDENCE_CORRUPT", root)
 	}
-	m, e := Snapshot(ctx, root)
+	m, e := snapshotStored(ctx, root)
 	if e != nil {
 		return e
 	}

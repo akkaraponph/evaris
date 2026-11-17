@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.4.0 - not yet released
+
+- `allowedChanges` entries are patterns: `*`, `?` and `[...]` match within a
+  segment and a whole `**` segment matches any depth, so `app/**` authorizes a
+  generated tree. The new optional `protectedPaths` (same syntax) always fails
+  authorization, even where `allowedChanges` matches. Generated files stay
+  protected. Plain paths keep their meaning.
+- `limits.maxEntries` (1 to 200000) raises the 2000-entry snapshot bound for an
+  experiment's fixtures, imported trees and command scratch copies.
+- `command-exit` criteria accept `dependencies`: absolute directories such as
+  `node_modules`, linked beside the scratch copy so Node resolves them without
+  copying. A missing source is `ERROR` with `TOOL_MISSING` and a catalogue
+  message.
+- Invaris verification failures carry a catalogue `message` naming the failing
+  step (harness, executable, scratch, command or evidence) instead of a bare
+  `IO_ERROR`.
+- Reports move to `evaris.report/v1alpha2`: each case row lists every
+  criterion's status, reason and message, and report.md adds a Criteria table.
+- `evaris show --evaluation ID [--criterion ID]` prints one evaluation per
+  criterion, including bounded command stdout and stderr, and refuses changed
+  evidence.
+- Import accepts `finalSource: {"kind": "git", "repository", "revision"}` in
+  place of `finalTree`: Evaris exports the commit with `git archive`, adds the
+  prepared generated files, and imports it. Runs that record the optional
+  `deliveredRevision` (resolved automatically for git imports) use
+  `evaris.run/v1alpha2`; other runs stay `evaris.run/v1alpha1`. 0.3.0 refuses
+  v1alpha2 runs.
+- `reviewerFiles` on the experiment freezes reviewer scripts and hidden tests:
+  `prepare` records their digests and `evaluate` refuses to grade when one
+  changed.
+- `"mode": "acceptance"` evaluates a single arm with any ID: reports carry
+  `mode`, no comparison and no comparison limitations, and `compare` refuses
+  the store. Preparations record the mode.
+- Invaris support widens from `ee92f3c` to v0.3.0, v0.4.0 and 0.5.x. Evaris
+  probes `invaris --version` before `check`, records it as `invarisVersion`, and
+  refuses an untested release with `UNAVAILABLE` / `UNSUPPORTED_TOOL_VERSION`.
+  Findings accept an optional `line`. CI runs the real-Invaris job for each
+  tested build, and both repositories publish the same compatibility table.
+
 ## 0.3.0 - 2026-11-16
 
 Workspace initialization, npm distribution, clearer command and import failures,

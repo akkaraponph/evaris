@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/akkaraponph/evaris/internal/application"
 	"github.com/akkaraponph/evaris/internal/domain"
+	"os"
 	"path/filepath"
 	"strings"
 	"time"
@@ -45,20 +46,22 @@ func parseImport(b []byte) (q domain.ImportRequest, err error) {
 	// The import format alone permits nullable observed fields and diff. Validate its
 	// shape with RawMessages, then strict-decode the exact typed host metadata.
 	type wire struct {
-		SchemaVersion  string          `json:"schemaVersion"`
-		PreparationID  string          `json:"preparationId"`
-		CaseID         string          `json:"caseId"`
-		ArmID          string          `json:"armId"`
-		ConfigDigest   domain.Digest   `json:"configDigest"`
-		FixtureDigest  domain.Digest   `json:"fixtureDigest"`
-		SourceRevision string          `json:"sourceRevision"`
-		FinalResponse  string          `json:"finalResponse"`
-		FinalTree      string          `json:"finalTree"`
-		Transcripts    []string        `json:"transcripts"`
-		Diff           json.RawMessage `json:"diff"`
-		Observed       json.RawMessage `json:"observed"`
-		Limitations    []string        `json:"limitations"`
-		Origin         string          `json:"origin"`
+		SchemaVersion     string              `json:"schemaVersion"`
+		PreparationID     string              `json:"preparationId"`
+		CaseID            string              `json:"caseId"`
+		ArmID             string              `json:"armId"`
+		ConfigDigest      domain.Digest       `json:"configDigest"`
+		FixtureDigest     domain.Digest       `json:"fixtureDigest"`
+		SourceRevision    string              `json:"sourceRevision"`
+		FinalResponse     string              `json:"finalResponse"`
+		FinalTree         string              `json:"finalTree,omitempty"`
+		FinalSource       *domain.FinalSource `json:"finalSource,omitempty"`
+		DeliveredRevision *string             `json:"deliveredRevision,omitempty"`
+		Transcripts       []string            `json:"transcripts"`
+		Diff              json.RawMessage     `json:"diff"`
+		Observed          json.RawMessage     `json:"observed"`
+		Limitations       []string            `json:"limitations"`
+		Origin            string              `json:"origin"`
 	}
 	// decode's nullable exceptions are limited to these explicit wire fields.
 	var w wire
@@ -172,11 +175,46 @@ func (r Repository) Import(ctx context.Context, store, requestPath string) (out 
 		}
 		return s, nil
 	}
-	tree, err := resolve(q.FinalTree)
-	if err != nil {
+	if (q.FinalTree == "") == (q.FinalSource == nil) {
+		return out, fail("INVALID_CONFIG", "exactly one of finalTree and finalSource is required")
+	}
+	if d := q.DeliveredRevision; d != nil && (strings.TrimSpace(*d) != *d || *d == "" || len(*d) > 128 || strings.ContainsAny(*d, "\x00\n\t ")) {
+		return out, fail("INVALID_CONFIG", "deliveredRevision")
+	}
+	var tree string
+	var gitRef *domain.FileRef
+	delivered := q.DeliveredRevision
+	if src := q.FinalSource; src != nil {
+		if src.Kind != "git" {
+			return out, fail("INVALID_CONFIG", `finalSource.kind must be "git"`)
+		}
+		repo, e := resolve(src.Repository)
+		if e != nil {
+			return out, e
+		}
+		if tree, e = os.MkdirTemp("", "evaris-git-"); e != nil {
+			return out, e
+		}
+		defer os.RemoveAll(tree)
+		// Snapshots refuse symbolic links in the path (macOS /var is one).
+		if tree, e = filepath.EvalSymlinks(tree); e != nil {
+			return out, e
+		}
+		sha, ref, e := exportGitTree(ctx, repo, src.Revision, tree, p.Experiment.MaxEntries())
+		if e != nil {
+			return out, e
+		}
+		if delivered != nil && *delivered != sha {
+			return out, fail("REVISION_MISMATCH", "deliveredRevision "+*delivered+" does not match the resolved commit "+sha)
+		}
+		if e = overlayGenerated(prep.TasksRoot, *task, tree); e != nil {
+			return out, e
+		}
+		delivered, gitRef = &sha, &ref
+	} else if tree, err = resolve(q.FinalTree); err != nil {
 		return out, err
 	}
-	m, err := Snapshot(ctx, tree)
+	m, err := SnapshotWith(ctx, tree, SnapshotOptions{MaxEntries: p.Experiment.MaxEntries()})
 	if err != nil {
 		return out, err
 	}
@@ -210,7 +248,11 @@ func (r Repository) Import(ctx context.Context, store, requestPath string) (out 
 		f.Path = "tree/" + f.Path
 		final = append(final, f)
 	}
-	out = domain.Run{SchemaVersion: "evaris.run/v1alpha1", ID: id, PreparationID: prep.ID, ExperimentID: p.Experiment.ID, CaseID: q.CaseID, ArmID: q.ArmID, ConfigDigest: q.ConfigDigest, FixtureDigest: q.FixtureDigest, TaskDigest: task.TaskDigest, PromptDigest: task.PromptDigest, OracleDigest: task.OracleDigest, Instructions: task.Instructions, SourceRevision: q.SourceRevision, ImportedAt: time.Now().UTC(), FinalFiles: final, Transcripts: []domain.FileRef{}, Observed: q.Observed, Origin: q.Origin, Limitations: q.Limitations}
+	schema := domain.RunSchemaV1
+	if delivered != nil {
+		schema = domain.RunSchemaV2
+	}
+	out = domain.Run{SchemaVersion: schema, DeliveredRevision: delivered, FinalSource: q.FinalSource, GitExecutable: gitRef, ID: id, PreparationID: prep.ID, ExperimentID: p.Experiment.ID, CaseID: q.CaseID, ArmID: q.ArmID, ConfigDigest: q.ConfigDigest, FixtureDigest: q.FixtureDigest, TaskDigest: task.TaskDigest, PromptDigest: task.PromptDigest, OracleDigest: task.OracleDigest, Instructions: task.Instructions, SourceRevision: q.SourceRevision, ImportedAt: time.Now().UTC(), FinalFiles: final, Transcripts: []domain.FileRef{}, Observed: q.Observed, Origin: q.Origin, Limitations: q.Limitations}
 	put := func(name string, b []byte) (domain.FileRef, error) {
 		e := tx.write(name, b)
 		return domain.FileRef{Path: name, SHA256: digest(b), Bytes: int64(len(b))}, e
@@ -274,9 +316,14 @@ func (r Repository) LoadRun(ctx context.Context, store, id string) (out applicat
 	if err = readRecord(ctx, root, "run.json", &out.Run); err != nil {
 		return out, err
 	}
-	if out.Run.ID != id || out.Run.SchemaVersion != "evaris.run/v1alpha1" || out.Run.ConfigDigest != p.ConfigDigest {
+	// v1alpha1 runs carry none of the v1alpha2 fields; v1alpha2 runs carry a
+	// delivered revision, and a git source only with its executable.
+	v1 := out.Run.SchemaVersion == domain.RunSchemaV1 && out.Run.DeliveredRevision == nil && out.Run.FinalSource == nil && out.Run.GitExecutable == nil
+	v2 := out.Run.SchemaVersion == domain.RunSchemaV2 && out.Run.DeliveredRevision != nil && (out.Run.FinalSource == nil) == (out.Run.GitExecutable == nil)
+	if out.Run.ID != id || !v1 && !v2 || out.Run.ConfigDigest != p.ConfigDigest {
 		return out, fail("EVIDENCE_CORRUPT", id)
 	}
+	out.MaxEntries = p.Experiment.MaxEntries()
 	out.Preparation, err = loadPreparation(ctx, store, out.Run.PreparationID)
 	if err != nil {
 		return out, err

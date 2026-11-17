@@ -106,3 +106,59 @@ func TestCommandFailureMessages(t *testing.T) {
 		t.Fatalf("result %+v", r)
 	}
 }
+
+func dependencyCriterion(script, source string) domain.Criterion {
+	return domain.Criterion{ID: "deps", Kind: "command-exit", Required: true, Expected: json.RawMessage("0"),
+		Command:      &domain.Command{Program: "/bin/sh", Args: []string{"-c", script}, EnvAllowlist: []string{}},
+		Dependencies: []domain.Dependency{{Name: "node_modules", Source: source}}}
+}
+
+func TestCommandDependencyResolves(t *testing.T) {
+	deps := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(deps, "pkg"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(deps, "pkg", "index.js"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	f := application.FrozenRun{SnapshotRoot: t.TempDir(), AllowCommands: true}
+	r, blobs := (Builtin{}).Grade(context.Background(), f, dependencyCriterion("test -f ../node_modules/pkg/index.js", deps))
+	if r.Status != "PASS" {
+		t.Fatalf("result %+v", r)
+	}
+	var ev struct {
+		Before, After domain.Manifest
+		Dependencies  []domain.Dependency
+	}
+	if err := json.Unmarshal(blobs[0].Data, &ev); err != nil {
+		t.Fatal(err)
+	}
+	for _, m := range []domain.Manifest{ev.Before, ev.After} {
+		for _, ref := range m {
+			if ref.Path == "node_modules" || len(ref.Path) > 12 && ref.Path[:13] == "node_modules/" {
+				t.Fatalf("dependency entered the manifest: %s", ref.Path)
+			}
+		}
+	}
+	if len(ev.Dependencies) != 1 || ev.Dependencies[0].Source != deps {
+		t.Fatalf("evidence dependencies %+v", ev.Dependencies)
+	}
+}
+
+func TestCommandDependencyMissing(t *testing.T) {
+	f := application.FrozenRun{SnapshotRoot: t.TempDir(), AllowCommands: true}
+	r, _ := (Builtin{}).Grade(context.Background(), f, dependencyCriterion("true", filepath.Join(t.TempDir(), "absent")))
+	if r.Status != "ERROR" || r.Reason != "TOOL_MISSING" || r.Message != "link dependencies: TOOL_MISSING; a declared dependency directory does not exist on this host" {
+		t.Fatalf("result %+v", r)
+	}
+}
+
+func TestCommandRaisedLimit(t *testing.T) {
+	build := "mkdir -p out && i=0; while [ $i -le 2500 ]; do : > out/f$i; i=$((i+1)); done"
+	c := domain.Criterion{ID: "b", Kind: "command-exit", Required: true, Expected: json.RawMessage("0"),
+		Command: &domain.Command{Program: "/bin/sh", Args: []string{"-c", build}, EnvAllowlist: []string{}}}
+	f := application.FrozenRun{SnapshotRoot: t.TempDir(), AllowCommands: true, MaxEntries: 3000}
+	if r, _ := (Builtin{}).Grade(context.Background(), f, c); r.Status != "PASS" {
+		t.Fatalf("raised limit: %+v", r)
+	}
+}

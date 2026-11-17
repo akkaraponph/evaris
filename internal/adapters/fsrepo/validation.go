@@ -29,10 +29,21 @@ func validatePreparation(p domain.Preparation) error {
 	if !recordID.MatchString(p.ID) || p.CreatedAt.IsZero() || p.ExperimentID == "" || !digestPattern.MatchString(string(p.ConfigDigest)) || !filepath.IsAbs(p.TasksRoot) || len(p.Tasks) == 0 || len(p.Tasks) > 200 {
 		return fail("EVIDENCE_CORRUPT", "preparation")
 	}
+	if p.Mode != "" && p.Mode != domain.ModeAcceptance {
+		return fail("EVIDENCE_CORRUPT", "preparation mode")
+	}
+	// Comparison preparations use the baseline and specialist arms; an
+	// acceptance preparation has one arm with any valid ID.
+	armOK := func(id string) bool { return id == "baseline" || id == "specialist" }
+	if p.Mode == domain.ModeAcceptance {
+		armOK = func(id string) bool { return domain.ValidID(id) }
+	}
 	seen := map[string]bool{}
+	arms := map[string]bool{}
 	for _, t := range p.Tasks {
 		key := t.CaseID + "/" + t.ArmID
-		if seen[key] || t.CaseID == "" || (t.ArmID != "baseline" && t.ArmID != "specialist") || t.Workspace != p.ID+"/"+key || !validManifest(t.InitialFiles) || !validManifest(t.GeneratedFiles) || t.Instructions == nil {
+		arms[t.ArmID] = true
+		if seen[key] || t.CaseID == "" || !armOK(t.ArmID) || p.Mode == domain.ModeAcceptance && len(arms) > 1 || t.Workspace != p.ID+"/"+key || !validManifest(t.InitialFiles) || !validManifest(t.GeneratedFiles) || t.Instructions == nil {
 			return fail("EVIDENCE_CORRUPT", "prepared task")
 		}
 		seen[key] = true
@@ -65,7 +76,7 @@ func validateRun(ctx context.Context, root string, r domain.Run, p domain.Prepar
 	if !bytes.Equal(a, b) {
 		return fail("EVIDENCE_CORRUPT", "instructions")
 	}
-	actual, e := Snapshot(ctx, filepath.Join(root, "tree"))
+	actual, e := snapshotStored(ctx, filepath.Join(root, "tree"))
 	if e != nil {
 		return e
 	}

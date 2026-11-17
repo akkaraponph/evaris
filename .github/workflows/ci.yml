@@ -26,29 +26,31 @@ jobs:
           GOSUMDB: "off"
         run: go test ./internal/acceptance -count=1
 
-  # P1 release gate: real Invaris at the pinned, inspected source revision.
-  # Provisioning (network) is separate from the asserted offline test phase.
+  # P1 release gate: real Invaris at every tested build (see
+  # internal/adapters/invaris.Tested). Provisioning (network) is separate from
+  # the asserted offline test phase.
   invaris:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
+        invaris: [ee92f3c00c1b59b2f576bad05569fb6eafb83097, v0.3.0, v0.4.0]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: akkaraponph/invaris
-          ref: ee92f3c00c1b59b2f576bad05569fb6eafb83097
+          ref: ${{ matrix.invaris }}
           path: invaris-src
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           cache: false
-      - name: Provision pinned Invaris (outside the Evaris module)
+      - name: Provision Invaris ${{ matrix.invaris }} (outside the Evaris module)
         working-directory: invaris-src
         run: |
-          test "$(git rev-parse HEAD)" = ee92f3c00c1b59b2f576bad05569fb6eafb83097
+          git rev-parse HEAD
           go build -trimpath -o "$RUNNER_TEMP/invaris" ./cmd/invaris
       - name: Real Invaris contract and P1 integration (offline)
         env:

@@ -98,7 +98,31 @@ null means unavailable, while an observed empty instruction/tool list is [].
 the agent said about its own work, not whether the work is correct.
 `sourceRevision` is the case's starting revision from the experiment file, not
 the commit the agent delivered; a mismatch fails with `REVISION_MISMATCH` and
-names the expected value.
+names the expected value. Record the delivered commit in the optional
+`deliveredRevision`.
+
+### Import from a Git repository
+
+When the agent worked in a real repository instead of the prepared workspace,
+replace `finalTree` with `finalSource`; exactly one of the two is required:
+
+```json
+"finalSource": {"kind": "git", "repository": "/absolute/path/to/repo", "revision": "agent-branch"},
+"deliveredRevision": "<optional full commit SHA>"
+```
+
+Evaris resolves `revision` to a commit with `git rev-parse`, exports that
+commit's tree with `git archive`, adds the prepared task's generated files
+(TASK.txt and frozen instructions) byte-identical from the prepared workspace,
+and imports the result like a final tree. The run (`evaris.run/v1alpha2`)
+records the resolved commit as `deliveredRevision`, the `finalSource`, and the
+identity of the `git` executable. A supplied `deliveredRevision` must equal the
+resolved full SHA. The commit must not contain symbolic links, submodules or
+its own copy of a generated file (`PATH_UNSAFE`). Files marked `export-ignore`
+in `.gitattributes` are not exported, so they are absent from the imported
+tree. The commit's tree should equal the fixture plus the agent's changes, so
+that source authorization compares like with like. `git` must be on PATH
+(`TOOL_MISSING` otherwise); `GIT_*` variables are not passed to it.
 Use origin synthetic-control for authored controls, not external-agent. Evaris
 cannot attest the truth of host metadata or origin labels.
 
@@ -117,6 +141,16 @@ inputs and missing response also fail. Evaluate an imported run and generate rep
 .panda-suite/build/evaris evaluate --store /absolute/path/to/evidence --run RUN_ID
 .panda-suite/build/evaris report --store /absolute/path/to/evidence
 ```
+
+To read one evaluation criterion by criterion, including a command's retained
+stdout and stderr (up to 4096 bytes each, control bytes shown as `\xNN`):
+
+```sh
+.panda-suite/build/evaris show --store /absolute/path/to/evidence --evaluation EVALUATION_ID [--criterion ID]
+```
+
+`show` prints text, reads only, and refuses an evaluation whose evidence changed.
+Use `--criterion verification` for the Invaris verification.
 
 Replace RUN_ID with the committed import output. Evaluation/report exit 1 means a
 known requirement failure; exit 2 means incomplete evidence or an operation error.

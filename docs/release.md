@@ -7,7 +7,7 @@
 | Go toolchain | 1.27.4 or newer (minimum in `go.mod`) |
 | Operating systems | Linux and macOS, amd64 and arm64 |
 | Windows | Not supported; the process adapter uses Unix process groups and does not build for Windows |
-| Invaris (optional) | Only source revision `ee92f3c00c1b59b2f576bad05569fb6eafb83097` |
+| Invaris (optional) | `ee92f3c`, v0.3.0, v0.4.0 and 0.5.x; see [compatibility](invaris.md#tested-compatibility) |
 
 CI runs build, vet, race tests and the offline acceptance suite on
 `ubuntu-latest` and `macos-latest`, plus the real-Invaris job on both. Platforms
@@ -21,7 +21,7 @@ other version, unknown fields and duplicate keys:
 | Record | Schema version |
 | --- | --- |
 | Experiment, oracle, import request | `evaris.experiment/v1alpha1`, `evaris.oracle/v1alpha1`, `evaris.import/v1alpha1` |
-| Preparation, run, evaluation, report | `evaris.preparation/v1alpha1`, `evaris.run/v1alpha1`, `evaris.evaluation/v1alpha1`, `evaris.report/v1alpha1` |
+| Preparation, run, evaluation, report | `evaris.preparation/v1alpha1`, `evaris.run/v1alpha1` or `v1alpha2` (0.4.0, with a delivered revision), `evaris.evaluation/v1alpha1`, `evaris.report/v1alpha2` (0.4.0; v1alpha1 before) |
 | Comparison | `evaris.comparison/v1alpha1` |
 | Invaris harness / evidence read | `invaris.dev/v1alpha2` / `invaris.evidence/v1alpha2` |
 

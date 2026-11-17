@@ -12,17 +12,33 @@ import (
 	"strings"
 )
 
-// maxSnapshotEntries bounds the entries Snapshot walks.
-const maxSnapshotEntries = 2000
+// SnapshotOptions narrows a snapshot. Exclude lists relative paths skipped
+// with everything below them (skipped entries count toward no limit);
+// MaxEntries bounds the entries walked, 0 meaning domain.DefaultMaxEntries.
+type SnapshotOptions struct {
+	Exclude    []string
+	MaxEntries int
+}
 
 // Snapshot identifies bounded regular-file contents without following symbolic links.
 func Snapshot(ctx context.Context, root string) (domain.Manifest, error) {
-	return SnapshotExcluding(ctx, root, nil)
+	return SnapshotWith(ctx, root, SnapshotOptions{})
 }
 
-// SnapshotExcluding is Snapshot that skips the declared relative paths and
-// everything below them. Skipped entries count toward no limit.
-func SnapshotExcluding(ctx context.Context, root string, exclude []string) (domain.Manifest, error) {
+// snapshotStored snapshots a committed store record. Its contents are pinned
+// by an exact recorded manifest, so the entry bound is the ceiling: a record
+// written under a raised experiment limit stays readable.
+func snapshotStored(ctx context.Context, root string) (domain.Manifest, error) {
+	return SnapshotWith(ctx, root, SnapshotOptions{MaxEntries: domain.MaxEntriesCeiling})
+}
+
+// SnapshotWith is Snapshot under o.
+func SnapshotWith(ctx context.Context, root string, o SnapshotOptions) (domain.Manifest, error) {
+	exclude := o.Exclude
+	maxEntries := o.MaxEntries
+	if maxEntries <= 0 {
+		maxEntries = domain.DefaultMaxEntries
+	}
 	if e := safe(root); e != nil {
 		return nil, e
 	}
@@ -51,8 +67,8 @@ func SnapshotExcluding(ctx context.Context, root string, exclude []string) (doma
 			return nil
 		}
 		entries++
-		if entries > maxSnapshotEntries {
-			return fail("LIMIT_EXCEEDED", fmt.Sprintf("entries: more than %d under the snapshot root", maxSnapshotEntries))
+		if entries > maxEntries {
+			return fail("LIMIT_EXCEEDED", fmt.Sprintf("entries: more than %d under the snapshot root", maxEntries))
 		}
 		if !domain.Relative(rel) {
 			return fail("PATH_UNSAFE", rel)

@@ -45,6 +45,11 @@ func (s Service) load(ctx context.Context, store, name string, arms map[string]b
 		return out, e
 	}
 	out.runs = runs
+	for _, p := range ps {
+		if p.Mode == domain.ModeAcceptance {
+			return out, &domain.Failure{Code: "INVALID_CONFIG", Path: "acceptance mode has no arms to compare"}
+		}
+	}
 	if len(ps) != 1 {
 		out.reasons = append(out.reasons, fmt.Sprintf("%s store has %d committed preparations; exactly one is required, multiple trials are not paired", name, len(ps)))
 	}

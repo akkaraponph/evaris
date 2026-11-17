@@ -59,7 +59,8 @@ func copyManifest(ctx context.Context, src string, t *transaction, prefix string
 			}
 		}
 	}
-	after, e := Snapshot(ctx, src)
+	// The copy is compared with the already bounded manifest m exactly.
+	after, e := SnapshotWith(ctx, src, SnapshotOptions{MaxEntries: domain.MaxEntriesCeiling})
 	if e != nil {
 		return e
 	}
@@ -77,6 +78,9 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 		sources := []string{filepath.Join(p.ConfigDir, c.Fixture), filepath.Join(p.ConfigDir, c.Task), filepath.Join(p.ConfigDir, c.Oracle), p.OutputRoot}
 		if c.Verification != nil {
 			sources = append(sources, filepath.Join(p.ConfigDir, c.Verification.Harness))
+			for _, f := range c.Verification.Files {
+				sources = append(sources, filepath.Join(p.ConfigDir, f))
+			}
 		}
 		for _, src := range sources {
 			if within(tasksRoot, src) || within(src, tasksRoot) {
@@ -90,6 +94,10 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 				return out, fail("PATH_UNSAFE", "instruction root")
 			}
 		}
+	}
+	reviewerFiles, err := hashReviewerFiles(p, tasksRoot)
+	if err != nil {
+		return out, err
 	}
 	work, err := reserve(tasksRoot)
 	if err != nil {
@@ -134,7 +142,10 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 	if e != nil {
 		return out, e
 	}
-	out = domain.Preparation{SchemaVersion: "evaris.preparation/v1alpha1", ID: id, ExperimentID: p.Experiment.ID, ConfigDigest: p.ConfigDigest, CreatedAt: time.Now().UTC(), TasksRoot: tasksRoot, Tasks: []domain.PreparedTask{}}
+	out = domain.Preparation{SchemaVersion: "evaris.preparation/v1alpha1", ID: id, ExperimentID: p.Experiment.ID, ConfigDigest: p.ConfigDigest, CreatedAt: time.Now().UTC(), TasksRoot: tasksRoot, Tasks: []domain.PreparedTask{}, ReviewerFiles: reviewerFiles}
+	if p.Experiment.Acceptance() {
+		out.Mode = domain.ModeAcceptance
+	}
 	frozenPlan, e := r.Load(ctx, filepath.Join(frozen, "experiment.json"))
 	if e != nil {
 		return out, e
@@ -142,7 +153,7 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 	for _, fc := range frozenPlan.Cases {
 		c := fc.Case
 		src := filepath.Join(frozen, c.Fixture)
-		m, e := Snapshot(ctx, src)
+		m, e := SnapshotWith(ctx, src, SnapshotOptions{MaxEntries: frozenPlan.Experiment.MaxEntries()})
 		if e != nil {
 			return out, e
 		}
@@ -192,11 +203,12 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 		return out, fail("EVIDENCE_CORRUPT", "source configuration")
 	}
 	for _, fc := range p.Cases {
-		a, e := Snapshot(ctx, filepath.Join(p.ConfigDir, fc.Case.Fixture))
+		limit := SnapshotOptions{MaxEntries: p.Experiment.MaxEntries()}
+		a, e := SnapshotWith(ctx, filepath.Join(p.ConfigDir, fc.Case.Fixture), limit)
 		if e != nil {
 			return out, e
 		}
-		b, e := Snapshot(ctx, filepath.Join(frozen, fc.Case.Fixture))
+		b, e := SnapshotWith(ctx, filepath.Join(frozen, fc.Case.Fixture), limit)
 		if e != nil || manifestDigest(a) != manifestDigest(b) {
 			return out, fail("EVIDENCE_CORRUPT", fc.Case.ID)
 		}
@@ -205,6 +217,7 @@ func (r Repository) Prepare(ctx context.Context, p application.Plan, tasksRoot s
 		names := []string{c.Task, c.Oracle}
 		if c.Verification != nil {
 			names = append(names, c.Verification.Harness)
+			names = append(names, c.Verification.Files...)
 		}
 		for _, name := range names {
 			a, e := readFile(filepath.Join(p.ConfigDir, name))
@@ -267,6 +280,9 @@ func freezeInputs(ctx context.Context, p application.Plan, dst string) (err erro
 		privatePaths = append(privatePaths, filepath.Join(p.ConfigDir, c.Oracle))
 		if c.Verification != nil {
 			privatePaths = append(privatePaths, filepath.Join(p.ConfigDir, c.Verification.Harness))
+			for _, f := range c.Verification.Files {
+				privatePaths = append(privatePaths, filepath.Join(p.ConfigDir, f))
+			}
 		}
 	}
 	if err = t.writeJSON(".evaris-private-sources.json", privatePaths); err != nil {
@@ -289,7 +305,7 @@ func freezeInputs(ctx context.Context, p application.Plan, dst string) (err erro
 	}
 	copied := map[string]bool{}
 	for _, c := range p.Experiment.Cases {
-		m, e := Snapshot(ctx, filepath.Join(p.ConfigDir, c.Fixture))
+		m, e := SnapshotWith(ctx, filepath.Join(p.ConfigDir, c.Fixture), SnapshotOptions{MaxEntries: p.Experiment.MaxEntries()})
 		if e != nil {
 			return e
 		}
@@ -319,6 +335,11 @@ func freezeInputs(ctx context.Context, p application.Plan, dst string) (err erro
 			if err = put(c.Verification.Harness); err != nil {
 				return err
 			}
+			for _, f := range c.Verification.Files {
+				if err = put(f); err != nil {
+					return err
+				}
+			}
 		}
 	}
 	for _, a := range p.Experiment.Arms {
@@ -329,4 +350,50 @@ func freezeInputs(ctx context.Context, p application.Plan, dst string) (err erro
 		}
 	}
 	return t.seal(ctx)
+}
+
+// hashReviewerFiles resolves the experiment's reviewer files against its
+// directory and records their digests. Each must be a regular file of at most
+// 10 MiB outside every fixture, the evidence store and the tasks root.
+func hashReviewerFiles(p application.Plan, tasksRoot string) ([]domain.FileRef, error) {
+	var refs []domain.FileRef
+	for _, rel := range p.Experiment.ReviewerFiles {
+		abs := filepath.Join(p.ConfigDir, filepath.FromSlash(rel))
+		bad := within(p.OutputRoot, abs) || within(tasksRoot, abs)
+		for _, c := range p.Experiment.Cases {
+			bad = bad || within(filepath.Join(p.ConfigDir, c.Fixture), abs)
+		}
+		if bad {
+			return nil, fail("PATH_UNSAFE", "reviewer file "+rel)
+		}
+		ref, err := hashReviewerFile(abs)
+		if err != nil {
+			return nil, fail("INVALID_CONFIG", "reviewer file "+rel+" must be a regular file of at most 10 MiB")
+		}
+		refs = append(refs, ref)
+	}
+	return refs, nil
+}
+
+func hashReviewerFile(abs string) (domain.FileRef, error) {
+	info, err := os.Lstat(abs)
+	if err != nil || !info.Mode().IsRegular() || info.Size() > 10<<20 {
+		return domain.FileRef{}, fail("PATH_UNSAFE", abs)
+	}
+	b, err := readFile(abs)
+	if err != nil {
+		return domain.FileRef{}, err
+	}
+	return domain.FileRef{Path: abs, SHA256: digest(b), Bytes: int64(len(b)), Executable: info.Mode()&0o111 != 0}, nil
+}
+
+// CheckReviewerFiles re-hashes the reviewer files recorded at preparation.
+func (r Repository) CheckReviewerFiles(_ context.Context, refs []domain.FileRef) error {
+	for _, want := range refs {
+		got, err := hashReviewerFile(want.Path)
+		if err != nil || got != want {
+			return fail("EVIDENCE_CORRUPT", "reviewer file "+want.Path+" changed since preparation")
+		}
+	}
+	return nil
 }

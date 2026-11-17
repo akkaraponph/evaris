@@ -41,7 +41,9 @@ func fake(t *testing.T, template []byte, body string) string {
 	dir := canonical(t)
 	tmpl := filepath.Join(dir, "template.json")
 	os.WriteFile(tmpl, template, 0600)
-	script := "#!/bin/sh\necho called >> " + filepath.Join(dir, "calls") + "\nd=$(dirname \"$2\")\n" + strings.ReplaceAll(body, "@TEMPLATE@", tmpl) + "\n"
+	// Like Invaris before 0.5, the fake rejects --version at once and is not
+	// counted as a call.
+	script := "#!/bin/sh\n[ \"$1\" = --version ] && { echo 'unsupported action: --version' >&2; exit 2; }\necho called >> " + filepath.Join(dir, "calls") + "\nd=$(dirname \"$2\")\n" + strings.ReplaceAll(body, "@TEMPLATE@", tmpl) + "\n"
 	path := filepath.Join(dir, "invaris")
 	if e := os.WriteFile(path, []byte(script), 0700); e != nil {
 		t.Fatal(e)
@@ -185,5 +187,36 @@ func TestRealInvaris(t *testing.T) {
 			t.Fatalf("raw evidence: %+v %v", raw, e)
 		}
 		t.Logf("%s exit=%d runId=%s findings=%d", v.Status, *v.ExitCode, *v.RunID, len(v.Findings))
+	}
+}
+
+func TestVerificationMessages(t *testing.T) {
+	harness := harnessBytes("/guard")
+	for name, tc := range map[string]struct {
+		exe     func(t *testing.T) string
+		prepare func(f application.FrozenRun)
+		reason  domain.Reason
+		message string
+	}{
+		"relative executable": {func(*testing.T) string { return "relative/invaris" }, nil, "TOOL_MISSING",
+			"verification executable: TOOL_MISSING; the invaris executable is not an absolute path to an executable file"},
+		"imported harness": {func(t *testing.T) string { return fake(t, templateFor("ACCEPT", harness), "exit 0") },
+			func(f application.FrozenRun) {
+				os.WriteFile(filepath.Join(f.SnapshotRoot, domain.HarnessName), []byte(`{}`), 0600)
+			}, "PATH_UNSAFE",
+			"verification scratch: PATH_UNSAFE; the imported tree contains a symbolic link, a special file or its own invaris.json"},
+		"no report": {func(t *testing.T) string { return fake(t, templateFor("ACCEPT", harness), "exit 0") }, nil, "OUTPUT_MISSING",
+			"verification command (command exited 0): OUTPUT_MISSING; invaris printed no report"},
+		"malformed report": {func(t *testing.T) string { return fake(t, templateFor("ACCEPT", harness), "echo '{}'; exit 0") }, nil, "EVIDENCE_CORRUPT",
+			"verification evidence (command exited 0): EVIDENCE_CORRUPT; the invaris report does not match the frozen harness or the check profile"},
+	} {
+		f := frozen(t, "approved\n", harness, true)
+		if tc.prepare != nil {
+			tc.prepare(f)
+		}
+		v, _ := Client{Executable: tc.exe(t)}.Verify(context.Background(), f)
+		if v.Reason != tc.reason || v.Message != tc.message || !domain.ValidGraderMessage(v.Message) {
+			t.Errorf("%s: reason %s message %q", name, v.Reason, v.Message)
+		}
 	}
 }

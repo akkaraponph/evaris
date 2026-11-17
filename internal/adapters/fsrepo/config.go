@@ -296,7 +296,7 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 			return
 		}
 		fc := application.FrozenCase{Case: c}
-		fc.Files, err = Snapshot(ctx, fixture)
+		fc.Files, err = SnapshotWith(ctx, fixture, SnapshotOptions{MaxEntries: plan.Experiment.MaxEntries()})
 		if err != nil {
 			return
 		}
@@ -391,6 +391,9 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 					}
 					seenExclude[x] = true
 				}
+				if err = validDependencies(g, fixture, plan.OutputRoot); err != nil {
+					return
+				}
 			default:
 				err = fail("INVALID_CONFIG", g.ID)
 				return
@@ -399,6 +402,10 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 		for _, g := range fc.Oracle.Criteria {
 			if g.SnapshotExclude != nil && g.Kind != "command-exit" {
 				err = fail("INVALID_CONFIG", g.ID+": snapshotExclude is only valid for command-exit")
+				return
+			}
+			if g.Dependencies != nil && g.Kind != "command-exit" {
+				err = fail("INVALID_CONFIG", g.ID+": dependencies are only valid for command-exit")
 				return
 			}
 			if g.Command != nil {
@@ -423,6 +430,25 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 		if v := c.Verification; v != nil {
 			if fc.Harness, err = r.loadHarness(plan, c, fc.Files); err != nil {
 				return
+			}
+			for _, name := range v.Files {
+				p := filepath.Join(plan.ConfigDir, name)
+				if p == plan.ConfigPath || within(plan.OutputRoot, p) {
+					err = fail("PATH_UNSAFE", "verification file "+name)
+					return
+				}
+				for _, other := range plan.Experiment.Cases {
+					if within(filepath.Join(plan.ConfigDir, other.Fixture), p) {
+						err = fail("PATH_UNSAFE", "verification file "+name)
+						return
+					}
+				}
+				b, e := readFile(p)
+				if e != nil {
+					err = e
+					return
+				}
+				fc.HarnessFiles = append(fc.HarnessFiles, application.Blob{Path: v.FileRel(name), Data: b})
 			}
 		}
 		plan.Cases = append(plan.Cases, fc)
@@ -475,6 +501,16 @@ func (r Repository) loadHarness(plan application.Plan, c domain.Case, files doma
 	if e != nil {
 		return nil, e
 	}
+	if c.Verification.Campaign() {
+		// Invaris validates the campaign; Evaris only requires its version.
+		var head struct {
+			Version string `json:"version"`
+		}
+		if json.Unmarshal(b, &head) != nil || head.Version != "invaris.campaign/v1alpha1" {
+			return nil, fail("INVALID_CONFIG", "verification campaign must be invaris.campaign/v1alpha1")
+		}
+		return b, nil
+	}
 	if r.CheckHarness != nil {
 		if e = r.CheckHarness(b); e != nil {
 			if _, ok := e.(*domain.Failure); ok {
@@ -496,4 +532,29 @@ func validID(s string) bool {
 		}
 	}
 	return true
+}
+
+// validDependencies checks a command-exit criterion's dependencies: at most
+// 16, each a unique single-segment name linked from an absolute, clean
+// source directory outside the fixture and the evidence store. The source
+// must exist when the criterion is graded; it is not frozen.
+func validDependencies(g domain.Criterion, fixture, store string) error {
+	bad := func(why string) error { return fail("INVALID_CONFIG", g.ID+": "+why) }
+	if len(g.Dependencies) > 16 {
+		return bad("at most 16 dependencies")
+	}
+	seen := map[string]bool{}
+	for _, d := range g.Dependencies {
+		if !domain.Relative(d.Name) || strings.Contains(d.Name, "/") || d.Name == ".git" || d.Name == domain.HarnessName || d.Name == "workspace" || seen[d.Name] {
+			return bad("dependency name must be a unique single path segment")
+		}
+		seen[d.Name] = true
+		if !filepath.IsAbs(d.Source) || filepath.Clean(d.Source) != d.Source || strings.ContainsRune(d.Source, 0) {
+			return bad("dependency source must be an absolute, clean path")
+		}
+		if within(fixture, d.Source) || within(d.Source, fixture) || within(store, d.Source) || within(d.Source, store) {
+			return fail("PATH_UNSAFE", g.ID+": dependency source overlaps the fixture or the evidence store")
+		}
+	}
+	return nil
 }

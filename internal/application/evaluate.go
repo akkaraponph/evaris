@@ -23,6 +23,12 @@ func (s Service) Evaluate(ctx context.Context, store, id string, allow bool) (ou
 		return out, e
 	}
 	f.AllowCommands = allow
+	// Never grade with reviewer scripts that changed since preparation.
+	if len(f.Preparation.ReviewerFiles) > 0 {
+		if e = s.Repo.CheckReviewerFiles(ctx, f.Preparation.ReviewerFiles); e != nil {
+			return out, e
+		}
+	}
 	eid, e := ID()
 	if e != nil {
 		return out, e
@@ -128,6 +134,9 @@ func (s Service) verify(ctx context.Context, f FrozenRun) (v domain.Verification
 	if !domain.VerificationStatuses[v.Status] || v.Status == "NOT_CONFIGURED" || !evidenceMatches(v.Evidence, b, "evidence/verification/") {
 		return base("ERROR", "INVALID_GRADER_RESULT"), nil
 	}
+	if !domain.ValidGraderMessage(v.Message) {
+		v.Message = ""
+	}
 	if v.Status == "ACCEPT" && (v.SchemaVersion == nil || v.RunID == nil || v.ConfigDigest == nil || v.ExitCode == nil || *v.ExitCode != 0) {
 		return base("ERROR", "INVALID_GRADER_RESULT"), nil
 	}
@@ -168,10 +177,6 @@ func authorization(f FrozenRun) domain.GraderResult {
 			}
 		}
 	}
-	allowed := map[string]bool{}
-	for _, p := range f.Case.Case.AllowedChanges {
-		allowed[p] = true
-	}
 	actual := map[string]domain.FileRef{}
 	for _, ref := range f.Run.FinalFiles {
 		actual[strings.TrimPrefix(ref.Path, "tree/")] = ref
@@ -187,7 +192,9 @@ func authorization(f FrozenRun) domain.GraderResult {
 		a, ok := initial[p]
 		b, present := actual[p]
 		if ok != present || a.SHA256 != b.SHA256 || a.Executable != b.Executable {
-			if !allowed[p] || protected[p] {
+			// A change passes only when an allowedChanges pattern matches it,
+			// no protectedPaths pattern does, and it is not a generated file.
+			if !domain.MatchAny(f.Case.Case.AllowedChanges, p) || domain.MatchAny(f.Case.Case.ProtectedPaths, p) || protected[p] {
 				r.Status = "FAIL"
 				r.Reason = "ASSERTION_FAILED"
 			}

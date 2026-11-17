@@ -1,5 +1,7 @@
 # Comparing arms and instruction revisions (P1)
 
+Comparison needs a comparison-mode experiment; an [acceptance-mode](configuration.md#acceptance-mode) store is refused.
+
 `compare` checks whether two sets of evaluations ran under matched conditions
 and, only if they did, records per-dimension transitions. It never computes a
 quality score, a statistical effect, or a causal claim.

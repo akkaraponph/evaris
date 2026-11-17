@@ -21,7 +21,9 @@ type Finding struct {
 	PolicyID string `json:"policyId"`
 	RuleID   string `json:"ruleId"`
 	Path     string `json:"path"`
-	Message  string `json:"message"`
+	// Line is the 1-based line Invaris reported, when it did.
+	Line    *int   `json:"line,omitempty"`
+	Message string `json:"message"`
 }
 
 // Verification is an external verifier signal kept separate from Evaris grading.
@@ -37,7 +39,10 @@ type Verification struct {
 	Executable    *FileRef  `json:"executable"`
 	Evidence      []FileRef `json:"evidence"`
 	Reason        Reason    `json:"reason"`
-	Findings      []Finding `json:"findings"`
+	// Message is a catalogue message (see ValidGraderMessage) naming the
+	// failing step; omitted when there is none.
+	Message  string    `json:"message,omitempty"`
+	Findings []Finding `json:"findings"`
 }
 
 // VerificationStatuses are the only valid Verification.Status values.
@@ -130,9 +135,28 @@ type CaseSummary struct {
 	Assessment      AssessmentStatus `json:"assessment"`
 	FailedCriteria  []string         `json:"failedCriteria"`
 	MissingEvidence []string         `json:"missingEvidence"`
+	// Criteria lists every grader result of the chosen evaluation, plus
+	// "verification" when configured, in evaluation order. Empty without one.
+	Criteria []CriterionSummary `json:"criteria"`
 }
+
+// CriterionSummary is one criterion's result in a report. Message is the
+// evaluation's catalogue message, empty when there is none.
+type CriterionSummary struct {
+	ID       string `json:"id"`
+	Required bool   `json:"required"`
+	Status   string `json:"status"`
+	Reason   Reason `json:"reason"`
+	Message  string `json:"message"`
+}
+
+// ReportSchemaVersion is the report record version this build writes.
+const ReportSchemaVersion = "evaris.report/v1alpha2"
+
 type Report struct {
-	SchemaVersion   string        `json:"schemaVersion"`
+	SchemaVersion string `json:"schemaVersion"`
+	// Mode is "comparison" or "acceptance"; acceptance reports carry no comparison.
+	Mode            string        `json:"mode"`
 	ID              string        `json:"id"`
 	ExperimentID    string        `json:"experimentId"`
 	ConfigDigest    Digest        `json:"configDigest"`

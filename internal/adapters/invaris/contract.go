@@ -1,6 +1,6 @@
 // Package invaris integrates the external Invaris CLI through its versioned
 // evidence contract. It never imports Invaris packages; it validates a narrow,
-// check-only profile pinned to Invaris source revision PinnedRevision.
+// check-only profile, tested against the Invaris versions in Tested.
 package invaris
 
 import (
@@ -15,8 +15,14 @@ import (
 	"github.com/akkaraponph/evaris/internal/domain"
 )
 
-// PinnedRevision is the Invaris source revision this profile was tested against.
-const PinnedRevision = "ee92f3c00c1b59b2f576bad05569fb6eafb83097"
+// Tested lists the Invaris builds the check profile is exercised against in
+// CI. Builds before v0.5.0 have no --version and are recorded as legacy.
+var Tested = []string{"ee92f3c00c1b59b2f576bad05569fb6eafb83097", "v0.3.0", "v0.4.0"}
+
+// SupportedReleases are the release lines (major.minor) whose --version Evaris
+// accepts. Development builds ("dev" or a pseudo-version) are accepted and
+// recorded; legacy builds without --version are accepted with no version.
+var SupportedReleases = []string{"0.5"}
 
 const (
 	harnessVersion  = "invaris.dev/v1alpha2"
@@ -217,6 +223,8 @@ type finding struct {
 	RuleID   string `json:"ruleId"`
 	Path     string `json:"path"`
 	Message  string `json:"message"`
+	// Line is optional (Invaris 0.5 structured guards); at least 1 when set.
+	Line *int `json:"line,omitempty"`
 }
 type diagnostic struct {
 	Code    string `json:"code"`
@@ -329,7 +337,10 @@ func ValidateEvidence(b []byte, exit *int, h Harness, harnessDigest domain.Diges
 			if f.PolicyID != g.PolicyID {
 				return corrupt("finding policy")
 			}
-			o.Findings = append(o.Findings, domain.Finding{PolicyID: f.PolicyID, RuleID: f.RuleID, Path: f.Path, Message: f.Message})
+			if f.Line != nil && *f.Line < 1 {
+				return corrupt("finding line")
+			}
+			o.Findings = append(o.Findings, domain.Finding{PolicyID: f.PolicyID, RuleID: f.RuleID, Path: f.Path, Message: f.Message, Line: f.Line})
 		}
 		switch c.Status {
 		case "PASS":

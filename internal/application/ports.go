@@ -17,6 +17,9 @@ type FrozenCase struct {
 	Instructions []InstructionBytes
 	// Harness holds the frozen private Invaris harness bytes when configured.
 	Harness []byte
+	// HarnessFiles holds a campaign's frozen referenced harness files, with
+	// paths relative to the campaign file's directory.
+	HarnessFiles []Blob
 }
 type Plan struct {
 	Experiment   domain.Experiment
@@ -35,6 +38,12 @@ type Repository interface {
 	LoadRun(context.Context, string, string) (FrozenRun, error)
 	SaveEvaluation(context.Context, string, domain.Evaluation, []Blob) error
 	LoadEvaluations(context.Context, string) ([]domain.Evaluation, []domain.Run, error)
+	// ReadEvaluationEvidence returns one evidence file of a committed,
+	// validated evaluation after checking its recorded digest.
+	ReadEvaluationEvidence(ctx context.Context, store, evaluationID, path string) ([]byte, error)
+	// CheckReviewerFiles fails when a reviewer file recorded at preparation
+	// changed, disappeared or changed type.
+	CheckReviewerFiles(ctx context.Context, refs []domain.FileRef) error
 	SaveReport(context.Context, string, domain.Report, []byte, []byte) error
 	LoadPreparations(context.Context, string) ([]domain.Preparation, error)
 	SaveComparison(context.Context, string, domain.Comparison) error
@@ -72,4 +81,6 @@ type FrozenRun struct {
 	Case          FrozenCase
 	SnapshotRoot  string
 	AllowCommands bool
+	// MaxEntries is the experiment's snapshot entry bound for grader copies.
+	MaxEntries int
 }

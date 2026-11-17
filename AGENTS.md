@@ -18,7 +18,7 @@ Keep reviewer oracles out of public fixtures and task workspaces. Preserve exact
 input/evidence hashes, unknown metadata, and explicit failure states. A passing
 supplied suite does not establish all task requirements. Synthetic controls are
 not real model measurements. No automatic agent execution exists. Invaris (P1)
-is an optional external CLI, pinned to source ee92f3c; keep its native verdict
+is an optional external CLI, tested against the builds in docs/invaris.md; keep its native verdict
 separate from the Evaris assessment. Real-binary tests need EVARIS_TEST_INVARIS.
 Trusted command grading and verification require --allow-commands and are not sandboxed.
 

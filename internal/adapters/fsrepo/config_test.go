@@ -211,3 +211,41 @@ func TestSnapshotExcludeValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestDependencyValidation(t *testing.T) {
+	deps := canonicalTemp(t)
+	crit := func(deps string) string {
+		return `{"id":"scan","kind":"command-exit","required":true,"expected":0,"command":{"program":"/bin/true","args":[],"envAllowlist":[]},"dependencies":` + deps + `}`
+	}
+	for name, tc := range map[string]struct {
+		criterion string
+		ok        bool
+	}{
+		"valid":              {crit(`[{"name":"node_modules","source":"` + deps + `"}]`), true},
+		"nested name":        {crit(`[{"name":"a/node_modules","source":"` + deps + `"}]`), false},
+		"relative source":    {crit(`[{"name":"node_modules","source":"deps"}]`), false},
+		"duplicate name":     {crit(`[{"name":"n","source":"` + deps + `"},{"name":"n","source":"` + deps + `"}]`), false},
+		"reserved name":      {crit(`[{"name":"workspace","source":"` + deps + `"}]`), false},
+		"inside fixture":     {crit(`[{"name":"node_modules","source":"FIXTURE"}]`), false},
+		"on exact criterion": {`{"id":"result","kind":"exact","required":true,"path":"result.txt","expected":"approved\n","dependencies":[{"name":"n","source":"` + deps + `"}]}`, false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			dir, err := filepath.EvalSymlinks(t.TempDir())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := os.CopyFS(dir, os.DirFS("../../../testdata/valid")); err != nil {
+				t.Fatal(err)
+			}
+			c := strings.ReplaceAll(tc.criterion, "FIXTURE", filepath.Join(dir, "public"))
+			oracle := `{"schemaVersion":"evaris.oracle/v1alpha1","criteria":[` + c + `]}`
+			if err := os.WriteFile(filepath.Join(dir, "reviewer", "oracle.json"), []byte(oracle), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			_, e := (Repository{}).Load(context.Background(), filepath.Join(dir, "experiment.json"))
+			if (e == nil) != tc.ok || e != nil && !strings.Contains(e.Error(), "scan") && !strings.Contains(e.Error(), "result") {
+				t.Fatalf("Load error = %v, want ok=%v", e, tc.ok)
+			}
+		})
+	}
+}

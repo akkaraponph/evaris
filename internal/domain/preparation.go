@@ -27,4 +27,9 @@ type Preparation struct {
 	CreatedAt     time.Time      `json:"createdAt"`
 	TasksRoot     string         `json:"tasksRoot"`
 	Tasks         []PreparedTask `json:"tasks"`
+	// ReviewerFiles are the experiment's reviewer files at preparation, by
+	// absolute path, checked again before every evaluation.
+	ReviewerFiles []FileRef `json:"reviewerFiles,omitempty"`
+	// Mode is "acceptance" for single-arm experiments; omitted otherwise.
+	Mode string `json:"mode,omitempty"`
 }

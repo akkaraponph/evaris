@@ -37,8 +37,11 @@ assessment. Infrastructure errors do not imply agent quality failure. A known
 required failure stays visible alongside tool errors. Semantic review, if required,
 stays pending; P0 does not import human approvals.
 
-`report` writes reports/<id>/report.json and report.md. Missing arms are explicit
-INCONCLUSIVE rows. Old evaluations remain immutable and referenced. Reports never
+`report` writes reports/<id>/report.json and report.md (schema
+`evaris.report/v1alpha2`). Each case row lists every criterion of its chosen
+evaluation, plus `verification` when configured, with status, reason and
+catalogue message; report.md shows them in a Criteria table per case and arm.
+Missing arms are explicit INCONCLUSIVE rows. Old evaluations remain immutable and referenced. Reports never
 inline artifact contents or raw command streams. Command evidence records bounded
 process output, executable identity, before/after scratch manifests and cleanup
 status. Hashes identify bytes; they do not authenticate tools.

@@ -23,13 +23,30 @@ func Markdown(r domain.Report) ([]byte, error) {
 	for _, c := range r.Cases {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s | %s | %s | %s |\n", safe(c.CaseID), safe(c.ArmID), safe(string(c.Execution)), safe(string(c.AgentOutcome)), safe(string(c.Assessment)), safe(strings.Join(c.FailedCriteria, ", ")), safe(strings.Join(c.MissingEvidence, ", ")))
 	}
+	b.WriteString("\n## Criteria\n")
+	any := false
+	for _, c := range r.Cases {
+		if len(c.Criteria) == 0 {
+			continue
+		}
+		any = true
+		fmt.Fprintf(&b, "\n### %s / %s\n\n| Criterion | Required | Status | Reason | Message |\n| --- | --- | --- | --- | --- |\n", safe(c.CaseID), safe(c.ArmID))
+		for _, g := range c.Criteria {
+			fmt.Fprintf(&b, "| %s | %t | %s | %s | %s |\n", safe(g.ID), g.Required, safe(g.Status), safe(string(g.Reason)), safe(g.Message))
+		}
+	}
+	if !any {
+		b.WriteString("\nNo evaluated cases.\n")
+	}
 	fmt.Fprintf(&b, "\nSchema: %s; version: %s; config: %s\n", safe(r.SchemaVersion), safe(r.EvarisVersion), safe(string(r.ConfigDigest)))
 	b.WriteString("\n## Limitations\n\n")
 	for _, s := range r.Limitations {
 		fmt.Fprintf(&b, "- %s\n", safe(s))
 	}
 	b.WriteString("\n## Comparison\n\n")
-	if c := r.Comparison; c == nil {
+	if r.Mode == domain.ModeAcceptance {
+		b.WriteString("Not applicable: acceptance mode.\n")
+	} else if c := r.Comparison; c == nil {
 		b.WriteString("None.\n")
 	} else {
 		fmt.Fprintf(&b, "Mode: %s; comparable: %t; ID: %s\n\n", safe(c.Mode), c.Comparable, safe(c.ID))

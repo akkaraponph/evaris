@@ -7,17 +7,23 @@ subprocess; P0 workflows are unchanged.
 
 ## Tested compatibility
 
-| Item | Value |
-| --- | --- |
-| Invaris source revision | `ee92f3c00c1b59b2f576bad05569fb6eafb83097` |
-| Harness | `invaris.dev/v1alpha2` |
-| Evidence | `invaris.evidence/v1alpha2` |
-| Action | `check` only |
+Evaris runs the Invaris `check` action only. This table is kept identical in
+Invaris `docs/ecosystem.md`:
 
-Only this revision has been exercised with a real binary. Newer harness or
-evidence versions are unsupported until tested; they fail closed as `ERROR`.
-Invaris does not expose a verified version command, so Evaris records the
-executable path and SHA-256 instead.
+| Evaris | Invaris build | `invaris --version` | Harness / evidence read | Status |
+| --- | --- | --- | --- | --- |
+| 0.4.0 | `ee92f3c` (pre-v0.2.0) | none (legacy) | `invaris.dev/v1alpha2` / `invaris.evidence/v1alpha2` | Tested in Evaris CI |
+| 0.4.0 | v0.3.0 | none (legacy) | same | Tested in Evaris CI |
+| 0.4.0 | v0.4.0 | none (legacy) | same | Tested in Evaris CI |
+| 0.4.0 | 0.5.x | `invaris v0.5.Z` | same; findings may carry `line` | Accepted; tested locally against a development build of the 0.5 changes, added to CI once v0.5.0 is tagged |
+| 0.4.0 | development build | `invaris dev` or a Go pseudo-version | same | Accepted and recorded |
+| 0.4.0 | any other release | `invaris vX.Y.Z` | not tested | `UNAVAILABLE`, `UNSUPPORTED_TOOL_VERSION` |
+| 0.3.0 and earlier | `ee92f3c` only | not checked | same, without `line` | Rejects findings that carry `line` |
+
+Before `check`, Evaris runs `<invaris> --version` and records the output as
+`invarisVersion` in `evidence/verification/process.json` (null for a legacy
+build), with the executable path and SHA-256. Newer harness or evidence versions
+fail closed as `ERROR`.
 
 ## Configuration
 
@@ -30,7 +36,7 @@ Add an optional `verification` object to a case:
 All three fields are required. `harness` is a private path relative to the
 experiment file. It must sit outside every fixture and the evidence store, and
 must not be the configuration, a task or an instruction file. The fixture must
-not contain `invaris.json`, and `allowedChanges` must not list it. Prepare
+not contain `invaris.json`, and no `allowedChanges` pattern may match it. Prepare
 freezes the harness bytes with the other private inputs; later edits to the
 source file do not affect existing stores. `timeoutSeconds` is 1–300.
 
@@ -112,3 +118,14 @@ EVARIS_TEST_INVARIS=/abs/invaris go test ./internal/acceptance -run TestP1Offlin
 
 Without `EVARIS_TEST_INVARIS` these tests skip and real compatibility is not
 established. Tests that use fake executables check Evaris's handling only.
+
+## Failure messages
+
+A verification that ends in `ERROR` carries a catalogue `message` in
+`evaluation.json`, naming the failing step (`verification harness`,
+`verification executable`, `verification scratch`, `verification command` or
+`verification evidence`), the exit code when Invaris ran, the reason code and a
+fixed hint, for example `verification evidence (command exited 0):
+UNSUPPORTED_SCHEMA; this Invaris version is not supported; see docs/invaris.md`.
+Like grader messages, it never contains paths, harness text or Invaris output;
+read the retained `evidence/verification/` files for those.

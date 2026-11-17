@@ -25,7 +25,13 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 	if e != nil {
 		return out, e
 	}
-	out = domain.Report{SchemaVersion: "evaris.report/v1alpha1", ID: id, CreatedAt: time.Now().UTC(), EvarisVersion: s.version(), EvaluationIDs: []string{}, Cases: []domain.CaseSummary{}, Evidence: []domain.FileRef{}, Limitations: []string{"Configured checks do not establish general semantic correctness.", "Host metadata and origin are operator-reported; no performance improvement is established."}, Recommendations: []string{}}
+	out = domain.Report{SchemaVersion: domain.ReportSchemaVersion, ID: id, CreatedAt: time.Now().UTC(), EvarisVersion: s.version(), EvaluationIDs: []string{}, Cases: []domain.CaseSummary{}, Evidence: []domain.FileRef{}, Limitations: []string{"Configured checks do not establish general semantic correctness.", "Host metadata and origin are operator-reported; no performance improvement is established."}, Recommendations: []string{}}
+	out.Mode = domain.ModeComparison
+	for _, p := range ps {
+		if p.Mode == domain.ModeAcceptance {
+			out.Mode = domain.ModeAcceptance
+		}
+	}
 	chosen, _ := latest(es)
 	for _, v := range es {
 		out.EvaluationIDs = append(out.EvaluationIDs, v.ID)
@@ -36,7 +42,7 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 		out.ExperimentID = p.ExperimentID
 		out.ConfigDigest = p.ConfigDigest
 		for _, task := range p.Tasks {
-			row := domain.CaseSummary{PreparationID: p.ID, CaseID: task.CaseID, ArmID: task.ArmID, Execution: "INCOMPLETE", AgentOutcome: "UNKNOWN", Assessment: "INCONCLUSIVE", FailedCriteria: []string{}, MissingEvidence: []string{"run"}}
+			row := domain.CaseSummary{PreparationID: p.ID, CaseID: task.CaseID, ArmID: task.ArmID, Execution: "INCOMPLETE", AgentOutcome: "UNKNOWN", Assessment: "INCONCLUSIVE", FailedCriteria: []string{}, MissingEvidence: []string{"run"}, Criteria: []domain.CriterionSummary{}}
 			for _, run := range runs {
 				if run.PreparationID != p.ID || run.CaseID != task.CaseID || run.ArmID != task.ArmID {
 					continue
@@ -53,6 +59,7 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 					row.Assessment = v.Assessment
 					row.MissingEvidence = []string{}
 					for _, g := range v.Graders {
+						row.Criteria = append(row.Criteria, domain.CriterionSummary{ID: g.CriterionID, Required: g.Required, Status: g.Status, Reason: g.Reason, Message: g.Message})
 						if g.Status == "FAIL" {
 							row.FailedCriteria = append(row.FailedCriteria, g.CriterionID)
 						}
@@ -61,6 +68,7 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 						}
 					}
 					if x := v.Verification; x != nil {
+						row.Criteria = append(row.Criteria, domain.CriterionSummary{ID: "verification", Required: x.Required, Status: x.Status, Reason: x.Reason, Message: x.Message})
 						switch x.Status {
 						case "REJECT":
 							row.FailedCriteria = append(row.FailedCriteria, "verification")
@@ -87,8 +95,12 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 	if len(ps) == 0 {
 		return out, &domain.Failure{Code: "EVIDENCE_CORRUPT", Path: "no preparation"}
 	}
-	// Embed only the newest committed comparison over exactly the selected evaluations.
-	cs, e := s.Repo.LoadComparisons(ctx, store)
+	// Embed only the newest committed comparison over exactly the selected
+	// evaluations. Acceptance experiments have nothing to compare.
+	var cs []domain.Comparison
+	if out.Mode != domain.ModeAcceptance {
+		cs, e = s.Repo.LoadComparisons(ctx, store)
+	}
 	if e != nil {
 		return out, e
 	}
@@ -107,7 +119,7 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 			out.Comparison = &c
 		}
 	}
-	if out.Comparison == nil {
+	if out.Comparison == nil && out.Mode != domain.ModeAcceptance {
 		out.Limitations = append(out.Limitations, "No committed comparison covers exactly the selected evaluations; comparison is null.")
 	}
 	if s.JSONReport == nil || s.MarkdownReport == nil {

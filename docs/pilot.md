@@ -31,8 +31,10 @@ instruction treatment, model and host settings, tools, permissions, budget,
 number of trials and exclusion rules. Decide the number of trials before seeing
 any outcome. Keep reviewer oracles and hidden tests out of the fixture and of
 every agent workspace. Evaris freezes the experiment, task, oracle and
-instruction bytes, but it does not hash files that a command criterion reads
-(scripts, hidden tests); record their SHA-256 yourself and recheck before grading.
+instruction bytes. List the files a command criterion reads (scripts, hidden
+tests) in the experiment's `reviewerFiles`: `prepare` records their SHA-256 and
+`evaluate` refuses to grade if any changed (see
+[configuration](configuration.md#reviewer-files)).
 
 ```sh
 .panda-suite/build/evaris validate --experiment "$PILOT_ROOT/experiment/experiment.json"
@@ -136,10 +138,11 @@ A tool error (ERROR/UNAVAILABLE) is not an agent failure; report them separately
 
 ## 6. Reproduce and publish
 
-A second operator should receive the stores, the reviewer files with their
-recorded hashes, and this runbook. If a command criterion reads files outside the
-oracle (scripts, hidden tests), verify their recorded SHA-256 values first (for
-example `shasum -a 256 -c MANIFEST`) and stop on mismatch. An oracle that names
+A second operator should receive the stores, the reviewer files and this
+runbook. `evaluate` checks the reviewer files against the digests recorded at
+preparation and stops on a mismatch; for a store prepared without
+`reviewerFiles`, verify recorded SHA-256 values by hand first (for example
+`shasum -a 256 -c MANIFEST`). An oracle that names
 reviewer files by absolute path does not relocate: a copied store still grades with the files at that path, so
 verify the hashes there. Then re-run `evaluate` and `report` and
 compare per-criterion outcomes (IDs differ because every evaluation is new).

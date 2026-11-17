@@ -8,6 +8,8 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"regexp"
+	"slices"
 	"time"
 
 	"github.com/akkaraponph/evaris/internal/adapters/fsrepo"
@@ -25,10 +27,11 @@ type Client struct {
 }
 
 type processRecord struct {
-	Program        string          `json:"program"`
-	Args           []string        `json:"args"`
-	EnvAllowlist   []string        `json:"envAllowlist"`
-	PinnedRevision string          `json:"pinnedRevision"`
+	Program      string   `json:"program"`
+	Args         []string `json:"args"`
+	EnvAllowlist []string `json:"envAllowlist"`
+	// InvarisVersion is what `--version` printed (nil for a legacy build).
+	InvarisVersion *string         `json:"invarisVersion"`
 	StartedAt      time.Time       `json:"startedAt"`
 	FinishedAt     time.Time       `json:"finishedAt"`
 	ExitCode       *int            `json:"exitCode"`
@@ -53,58 +56,60 @@ func (c Client) Verify(ctx context.Context, f application.FrozenRun) (domain.Ver
 		v.Status, v.Reason = "UNAVAILABLE", "COMMAND_NOT_AUTHORIZED"
 		return v, nil
 	}
+	fail := func(step domain.CommandStep, r domain.Reason) (domain.Verification, []application.Blob) {
+		v.Reason, v.Message = r, domain.CommandMessage(step, false, nil, r, "")
+		return v, nil
+	}
 	h, e := ParseHarness(f.Case.Harness)
 	if e != nil {
-		v.Reason = reason(e, "INVALID_CONFIG")
-		return v, nil
+		return fail(domain.StepVerifyHarness, reason(e, "INVALID_CONFIG"))
 	}
 	if !filepath.IsAbs(c.Executable) {
-		v.Reason = "TOOL_MISSING"
-		return v, nil
+		return fail(domain.StepVerifyExecutable, "TOOL_MISSING")
 	}
 	if info, e := os.Stat(c.Executable); e != nil || !info.Mode().IsRegular() || info.Mode()&0111 == 0 {
-		v.Reason = "TOOL_MISSING"
-		return v, nil
+		return fail(domain.StepVerifyExecutable, "TOOL_MISSING")
 	}
 	scratch, e := os.MkdirTemp("", "evaris-invaris-")
 	if e != nil {
-		v.Reason = "IO_ERROR"
-		return v, nil
+		return fail(domain.StepVerifyScratch, "IO_ERROR")
 	}
 	defer os.RemoveAll(scratch)
 	if scratch, e = filepath.EvalSymlinks(scratch); e != nil {
-		v.Reason = "IO_ERROR"
-		return v, nil
+		return fail(domain.StepVerifyScratch, "IO_ERROR")
 	}
 	if e = copyTree(f.SnapshotRoot, scratch); e != nil {
-		v.Reason = reason(e, "IO_ERROR")
-		return v, nil
+		return fail(domain.StepVerifyScratch, reason(e, "IO_ERROR"))
 	}
 	harnessPath := filepath.Join(scratch, domain.HarnessName)
 	// Exclusive creation: an imported invaris.json never stands in for the frozen harness.
 	w, e := os.OpenFile(harnessPath, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0600)
 	if e != nil {
-		v.Reason = "PATH_UNSAFE"
-		return v, nil
+		return fail(domain.StepVerifyScratch, "PATH_UNSAFE")
 	}
 	_, e = w.Write(f.Case.Harness)
 	if ce := w.Close(); e == nil {
 		e = ce
 	}
 	if e != nil {
-		v.Reason = "IO_ERROR"
-		return v, nil
+		return fail(domain.StepVerifyScratch, "IO_ERROR")
 	}
 	env := c.Env
 	if env == nil {
 		env = []string{"PATH"}
+	}
+	// Probe the version only once nothing else refuses the run.
+	version, supported := ProbeVersion(ctx, c.Executable)
+	if !supported {
+		v.Status = "UNAVAILABLE"
+		return fail(domain.StepVerifyExecutable, "UNSUPPORTED_TOOL_VERSION")
 	}
 	cmd := domain.Command{Program: c.Executable, Args: []string{"check", harnessPath}, EnvAllowlist: env, TimeoutSeconds: cfg.TimeoutSeconds}
 	before, be := fsrepo.Snapshot(ctx, scratch)
 	res := process.RunLimited(ctx, scratch, cmd, maxEvidence, 64<<10)
 	after, ae := fsrepo.Snapshot(context.WithoutCancel(ctx), scratch)
 	v.ExitCode, v.Executable = res.ExitCode, res.Executable
-	rec := processRecord{Program: cmd.Program, Args: cmd.Args, EnvAllowlist: env, PinnedRevision: PinnedRevision, StartedAt: res.StartedAt, FinishedAt: res.FinishedAt, ExitCode: res.ExitCode, Reason: res.Reason, Executable: res.Executable, ScratchBefore: before, ScratchAfter: after, StdoutBytes: len(res.Stdout), StderrBytes: len(res.Stderr)}
+	rec := processRecord{Program: cmd.Program, Args: cmd.Args, EnvAllowlist: env, InvarisVersion: version, StartedAt: res.StartedAt, FinishedAt: res.FinishedAt, ExitCode: res.ExitCode, Reason: res.Reason, Executable: res.Executable, ScratchBefore: before, ScratchAfter: after, StdoutBytes: len(res.Stdout), StderrBytes: len(res.Stderr)}
 	rec.ScratchChanged = be != nil || ae != nil || !sameManifest(before, after)
 	meta, _ := json.MarshalIndent(rec, "", "  ")
 	blobs := []application.Blob{{Path: "evidence/verification/stdout.json", Data: res.Stdout}, {Path: "evidence/verification/stderr.txt", Data: res.Stderr}, {Path: "evidence/verification/process.json", Data: append(meta, '\n')}}
@@ -117,12 +122,15 @@ func (c Client) Verify(ctx context.Context, f application.FrozenRun) (domain.Ver
 	case res.Reason != "":
 		// Timeout, cancellation and output limits override any partial JSON.
 		v.Reason = res.Reason
+		v.Message = domain.CommandMessage(domain.StepVerifyRun, true, res.ExitCode, v.Reason, "")
 	case len(res.Stdout) == 0:
 		v.Reason = "OUTPUT_MISSING"
+		v.Message = domain.CommandMessage(domain.StepVerifyRun, true, res.ExitCode, v.Reason, "")
 	default:
 		o, e := ValidateEvidence(res.Stdout, res.ExitCode, h, domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(f.Case.Harness))), scratch)
 		if e != nil {
 			v.Reason = reason(e, "EVIDENCE_CORRUPT")
+			v.Message = domain.CommandMessage(domain.StepVerifyEvidence, true, res.ExitCode, v.Reason, "")
 			break
 		}
 		v.Status = o.Decision
@@ -178,4 +186,27 @@ func copyTree(src, dst string) error {
 		}
 		return os.WriteFile(target, b, info.Mode().Perm()|0600)
 	})
+}
+
+var versionLine = regexp.MustCompile(`^invaris (dev|v(\d+)\.(\d+)\.\d+(\S*))\n?$`)
+
+// ProbeVersion runs `<exe> --version`. It returns the printed version and
+// whether Evaris accepts it: a legacy build that has no --version (nil,
+// true), "dev" or a pseudo-version (true), or a release whose major.minor
+// is in SupportedReleases.
+func ProbeVersion(ctx context.Context, exe string) (*string, bool) {
+	res := process.RunLimited(ctx, filepath.Dir(exe), domain.Command{Program: exe, Args: []string{"--version"}, EnvAllowlist: []string{"PATH"}, TimeoutSeconds: 10}, 1<<10, 1<<10)
+	return classifyVersion(res.Stdout, res.ExitCode)
+}
+
+func classifyVersion(stdout []byte, exit *int) (*string, bool) {
+	m := versionLine.FindSubmatch(stdout)
+	if exit == nil || *exit != 0 || m == nil {
+		return nil, true
+	}
+	v := string(m[1])
+	if v == "dev" || len(m[4]) > 0 {
+		return &v, true
+	}
+	return &v, slices.Contains(SupportedReleases, string(m[2])+"."+string(m[3]))
 }

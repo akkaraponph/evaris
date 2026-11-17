@@ -38,15 +38,19 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		return 2
 	}
 	name := args[0]
-	if name != "init" && name != "validate" && name != "prepare" && name != "import" && name != "evaluate" && name != "report" && name != "compare" {
+	if name != "init" && name != "validate" && name != "prepare" && name != "import" && name != "evaluate" && name != "report" && name != "compare" && name != "show" {
 		fmt.Fprintln(stderr, "INVALID_CONFIG: unknown subcommand")
 		return 2
 	}
 	f := flag.NewFlagSet(name, flag.ContinueOnError)
 	f.SetOutput(stderr)
-	var experiment, tasks, store, record, run, invarisPath, left, right, mode string
+	var experiment, tasks, store, record, run, invarisPath, left, right, mode, evaluation, criterion string
 	var allow bool
-	if name == "evaluate" || name == "report" {
+	if name == "show" {
+		f.StringVar(&store, "store", "", "absolute evidence store (default .evaris/evidence)")
+		f.StringVar(&evaluation, "evaluation", "", "evaluation ID")
+		f.StringVar(&criterion, "criterion", "", "only this criterion (\"verification\" for verification)")
+	} else if name == "evaluate" || name == "report" {
 		f.StringVar(&store, "store", "", "absolute evidence store (default .evaris/evidence)")
 		if name == "evaluate" {
 			f.StringVar(&run, "run", "", "run ID")
@@ -89,12 +93,12 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		}
 		return 2
 	}
-	if f.NArg() != 0 || name == "validate" && experiment == "" || name == "prepare" && (experiment == "" || seen["tasks-root"] && tasks == "") || name == "import" && record == "" || name == "evaluate" && run == "" || seen["store"] && store == "" || name == "compare" && (left == "" || right == "" || mode != "arms" && mode != "revisions") {
+	if f.NArg() != 0 || name == "validate" && experiment == "" || name == "prepare" && (experiment == "" || seen["tasks-root"] && tasks == "") || name == "import" && record == "" || name == "evaluate" && run == "" || name == "show" && evaluation == "" || seen["criterion"] && criterion == "" || seen["store"] && store == "" || name == "compare" && (left == "" || right == "" || mode != "arms" && mode != "revisions") {
 		fmt.Fprintln(stderr, "INVALID_CONFIG: required flags missing")
 		return 2
 	}
 	// Resolve only default locations. Explicit paths keep their existing rules.
-	if name == "import" || name == "evaluate" || name == "report" {
+	if name == "import" || name == "evaluate" || name == "report" || name == "show" {
 		if !seen["store"] {
 			var err error
 			store, err = filepath.Abs(filepath.Join(".evaris", "evidence"))
@@ -146,6 +150,17 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		out, e = runtime.Service.Import(ctx, store, record)
 	case "compare":
 		out, e = runtime.Service.Compare(ctx, left, right, mode)
+	case "show":
+		// show prints text, not JSON, and exits 0 when it could read the evaluation.
+		text, err := runtime.Service.Show(ctx, store, evaluation, criterion)
+		if err != nil {
+			fmt.Fprintln(stderr, application.AsFailure(err))
+			return 2
+		}
+		if _, err := io.WriteString(stdout, text); err != nil {
+			return 2
+		}
+		return 0
 	}
 	if e != nil {
 		fmt.Fprintln(stderr, application.AsFailure(e))

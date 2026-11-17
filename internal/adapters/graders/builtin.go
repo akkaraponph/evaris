@@ -180,17 +180,38 @@ func equal(a, b any) bool {
 }
 func (g Builtin) command(ctx context.Context, f application.FrozenRun, c domain.Criterion) (domain.GraderResult, []application.Blob) {
 	r := domain.GraderResult{CriterionID: c.ID, Required: c.Required, Status: "ERROR", Evidence: []domain.FileRef{}, GraderVersion: "builtin/1"}
-	scratch, e := os.MkdirTemp("", "evaris-grade-")
+	container, e := os.MkdirTemp("", "evaris-grade-")
 	if e != nil {
 		r.Reason = "IO_ERROR"
 		return r, nil
 	}
-
-	defer os.RemoveAll(scratch)
-	scratch, e = filepath.EvalSymlinks(scratch)
+	defer os.RemoveAll(container)
+	container, e = filepath.EvalSymlinks(container)
 	if e != nil {
 		r.Reason = "IO_ERROR"
 		return r, nil
+	}
+	// Dependencies are linked beside the copy, never inside it, so they are
+	// not part of its manifests and the copy holds no link into the host.
+	scratch := container
+	if len(c.Dependencies) > 0 {
+		for _, d := range c.Dependencies {
+			if info, err := os.Stat(d.Source); err != nil || !info.IsDir() {
+				r.Reason = "TOOL_MISSING"
+				r.Message = domain.CommandMessage(domain.StepDependencies, false, nil, r.Reason, "")
+				return r, nil
+			}
+			if err := os.Symlink(d.Source, filepath.Join(container, d.Name)); err != nil {
+				r.Reason = "IO_ERROR"
+				r.Message = domain.CommandMessage(domain.StepDependencies, false, nil, r.Reason, "")
+				return r, nil
+			}
+		}
+		scratch = filepath.Join(container, "workspace")
+		if e = os.Mkdir(scratch, 0o700); e != nil {
+			r.Reason = "IO_ERROR"
+			return r, nil
+		}
 	}
 	e = filepath.WalkDir(f.SnapshotRoot, func(p string, d os.DirEntry, e error) error {
 		if e != nil {
@@ -224,10 +245,11 @@ func (g Builtin) command(ctx context.Context, f application.FrozenRun, c domain.
 		r.Message = domain.CommandMessage(domain.StepCopy, false, nil, r.Reason, limitKind(e))
 		return r, nil
 	}
-	before, be := fsrepo.SnapshotExcluding(ctx, scratch, c.SnapshotExclude)
+	opts := fsrepo.SnapshotOptions{Exclude: c.SnapshotExclude, MaxEntries: f.MaxEntries}
+	before, be := fsrepo.SnapshotWith(ctx, scratch, opts)
 	result := process.Run(ctx, scratch, *c.Command)
-	after, ae := fsrepo.SnapshotExcluding(context.WithoutCancel(ctx), scratch, c.SnapshotExclude)
-	cleanupErr := os.RemoveAll(scratch)
+	after, ae := fsrepo.SnapshotWith(context.WithoutCancel(ctx), scratch, opts)
+	cleanupErr := os.RemoveAll(container)
 	if be != nil || ae != nil || cleanupErr != nil {
 		// Say which step failed and whether the command itself finished, so
 		// a passing command is not mistaken for a failing one.
@@ -268,7 +290,8 @@ func (g Builtin) command(ctx context.Context, f application.FrozenRun, c domain.
 		Process       process.ProcessResult
 		Before, After domain.Manifest
 		CleanupOK     bool
-	}{result, before, after, cleanupErr == nil})
+		Dependencies  []domain.Dependency `json:",omitempty"`
+	}{result, before, after, cleanupErr == nil, c.Dependencies})
 	name := "evidence/" + c.ID + ".json"
 	r.Evidence = []domain.FileRef{{Path: name, SHA256: domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(data))), Bytes: int64(len(data))}}
 	return r, []application.Blob{{Path: name, Data: data}}
