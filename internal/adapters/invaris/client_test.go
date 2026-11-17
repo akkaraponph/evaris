@@ -220,3 +220,76 @@ func TestVerificationMessages(t *testing.T) {
 		}
 	}
 }
+
+// campaignRun is a frozen run whose imported tree holds the fixture scripts
+// and whose verification is the named campaign over the harness files.
+func campaignRun(t *testing.T, campaign string, harnesses ...string) application.FrozenRun {
+	t.Helper()
+	dir := "../../../testdata/invaris/campaign"
+	tree := canonical(t)
+	for _, s := range []string{"behavior.sh", "test.sh", "validate.sh"} {
+		b, err := os.ReadFile(filepath.Join(dir, s))
+		if err != nil {
+			t.Fatal(err)
+		}
+		os.WriteFile(filepath.Join(tree, s), b, 0o700)
+	}
+	cb, _ := os.ReadFile(filepath.Join(dir, campaign))
+	var files []application.Blob
+	var names []string
+	for _, h := range harnesses {
+		b, _ := os.ReadFile(filepath.Join(dir, h))
+		files = append(files, application.Blob{Path: h, Data: b})
+		names = append(names, "reviewer/"+h)
+	}
+	cfg := &domain.VerificationConfig{Harness: "reviewer/" + campaign, Required: true, TimeoutSeconds: 120, Action: domain.VerifyCampaign, Files: names}
+	return application.FrozenRun{SnapshotRoot: tree, AllowCommands: true, Case: application.FrozenCase{Case: domain.Case{ID: "sample", Verification: cfg}, Harness: cb, HarnessFiles: files}}
+}
+
+func TestRealInvarisCampaign(t *testing.T) {
+	exe := os.Getenv("EVARIS_TEST_INVARIS")
+	if exe == "" {
+		t.Skip("EVARIS_TEST_INVARIS unset: real Invaris campaign verification NOT verified")
+	}
+	for _, tc := range []struct {
+		campaign, status string
+		harnesses        []string
+		exit             int
+	}{{"accept.json", "ACCEPT", []string{"killed.json"}, 0}, {"reject.json", "REJECT", []string{"killed.json", "survived.json"}, 1}} {
+		f := campaignRun(t, tc.campaign, tc.harnesses...)
+		v, blobs := Client{Executable: exe}.Verify(context.Background(), f)
+		if v.Status != tc.status || v.ExitCode == nil || *v.ExitCode != tc.exit || v.ConfigDigest == nil || domain.Digest(*v.ConfigDigest) != digestOf(f.Case.Harness) {
+			t.Fatalf("%s: %+v\nstdout: %.400s\nstderr: %s", tc.campaign, v, blobs[0].Data, blobs[1].Data)
+		}
+		t.Logf("%s: %s %s", tc.campaign, v.Status, *v.SchemaVersion)
+	}
+}
+
+func TestCampaignFilesCannotBeReplaced(t *testing.T) {
+	f := campaignRun(t, "accept.json", "killed.json")
+	os.WriteFile(filepath.Join(f.SnapshotRoot, "killed.json"), []byte(`{}`), 0o600)
+	exe := fake(t, templateFor("ACCEPT", harnessBytes("/guard")), "exit 0")
+	v, _ := Client{Executable: exe}.Verify(context.Background(), f)
+	if v.Reason != "PATH_UNSAFE" || calls(exe) != 0 {
+		t.Fatalf("imported harness file replaced the frozen one: %+v calls=%d", v, calls(exe))
+	}
+}
+
+// A campaign harness the reviewer did not freeze is read from the delivered
+// tree by Invaris; Evaris must refuse that report, not accept it.
+func TestRealInvarisCampaignUnfrozenHarness(t *testing.T) {
+	exe := os.Getenv("EVARIS_TEST_INVARIS")
+	if exe == "" {
+		t.Skip("EVARIS_TEST_INVARIS unset: real Invaris campaign verification NOT verified")
+	}
+	f := campaignRun(t, "accept.json")
+	b, err := os.ReadFile("../../../testdata/invaris/campaign/killed.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(f.SnapshotRoot, "killed.json"), b, 0o600)
+	v, _ := Client{Executable: exe}.Verify(context.Background(), f)
+	if v.Status == "ACCEPT" || v.Reason != "EVIDENCE_CORRUPT" {
+		t.Fatalf("delivered harness accepted: %+v", v)
+	}
+}

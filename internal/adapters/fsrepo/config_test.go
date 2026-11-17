@@ -2,6 +2,7 @@ package fsrepo
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/akkaraponph/evaris/internal/domain"
 	"os"
 	"path/filepath"
@@ -247,5 +248,39 @@ func TestDependencyValidation(t *testing.T) {
 				t.Fatalf("Load error = %v, want ok=%v", e, tc.ok)
 			}
 		})
+	}
+}
+
+func TestCampaignVerificationFrozen(t *testing.T) {
+	config, tasks := fixture(t)
+	dir := filepath.Dir(config)
+	os.WriteFile(filepath.Join(dir, "reviewer", "campaign.json"), []byte(`{"version":"invaris.campaign/v1alpha1","name":"c"}`), 0o600)
+	os.WriteFile(filepath.Join(dir, "reviewer", "mutate.json"), []byte(`{"version":"invaris.dev/v1alpha3"}`), 0o600)
+	b, _ := os.ReadFile(config)
+	var exp map[string]any
+	json.Unmarshal(b, &exp)
+	exp["cases"].([]any)[0].(map[string]any)["verification"] = map[string]any{"harness": "reviewer/campaign.json", "required": true, "timeoutSeconds": 60, "action": "campaign", "files": []any{"reviewer/mutate.json"}}
+	b, _ = json.Marshal(exp)
+	os.WriteFile(config, b, 0o600)
+	plan, e := (Repository{}).Load(context.Background(), config)
+	if e != nil {
+		t.Fatal(e)
+	}
+	if fc := plan.Cases[0]; len(fc.HarnessFiles) != 1 || fc.HarnessFiles[0].Path != "mutate.json" {
+		t.Fatalf("harness files %+v", fc.HarnessFiles)
+	}
+	if _, e := (Repository{}).Prepare(context.Background(), plan, tasks); e != nil {
+		t.Fatal(e)
+	}
+	// Editing the source after preparation does not change the frozen copy.
+	os.WriteFile(filepath.Join(dir, "reviewer", "mutate.json"), []byte(`{"edited":true}`), 0o600)
+	frozen, e := loadStore(context.Background(), plan.OutputRoot)
+	if e != nil || string(frozen.Cases[0].HarnessFiles[0].Data) != `{"version":"invaris.dev/v1alpha3"}` {
+		t.Fatalf("frozen campaign file: %v %+v", e, frozen.Cases[0].HarnessFiles)
+	}
+	// A campaign file of another kind is refused.
+	os.WriteFile(filepath.Join(dir, "reviewer", "campaign.json"), []byte(`{"version":"invaris.dev/v1alpha2"}`), 0o600)
+	if _, e := (Repository{}).Load(context.Background(), config); e == nil || !strings.Contains(e.Error(), "invaris.campaign/v1alpha1") {
+		t.Fatalf("non-campaign harness: %v", e)
 	}
 }

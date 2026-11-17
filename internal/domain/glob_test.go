@@ -56,3 +56,25 @@ func TestGlobCannotAllowHarness(t *testing.T) {
 		t.Fatalf("malformed protected pattern: %v", err)
 	}
 }
+
+func TestVerificationActionValidation(t *testing.T) {
+	ok := func(v VerificationConfig) bool { return validVerification(&v) }
+	for name, tc := range map[string]struct {
+		v    VerificationConfig
+		want bool
+	}{
+		"check default":         {VerificationConfig{Harness: "r/h.json"}, true},
+		"campaign with files":   {VerificationConfig{Harness: "r/c.json", Action: "campaign", Files: []string{"r/m.json", "r/sub/g.json"}}, true},
+		"unknown action":        {VerificationConfig{Harness: "r/h.json", Action: "mutate"}, false},
+		"files on check":        {VerificationConfig{Harness: "r/h.json", Files: []string{"r/m.json"}}, false},
+		"file outside dir":      {VerificationConfig{Harness: "r/c.json", Action: "campaign", Files: []string{"other/m.json"}}, false},
+		"file is the campaign":  {VerificationConfig{Harness: "r/c.json", Action: "campaign", Files: []string{"r/c.json"}}, false},
+		"file named invaris":    {VerificationConfig{Harness: "r/c.json", Action: "campaign", Files: []string{"r/invaris.json"}}, false},
+		"duplicate file":        {VerificationConfig{Harness: "r/c.json", Action: "campaign", Files: []string{"r/m.json", "r/m.json"}}, false},
+		"root campaign any dir": {VerificationConfig{Harness: "c.json", Action: "campaign", Files: []string{"x/m.json"}}, true},
+	} {
+		if got := ok(tc.v); got != tc.want {
+			t.Errorf("%s: %v, want %v", name, got, tc.want)
+		}
+	}
+}

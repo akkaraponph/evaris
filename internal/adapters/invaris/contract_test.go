@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/akkaraponph/evaris/internal/application"
 	"github.com/akkaraponph/evaris/internal/domain"
 )
 
@@ -234,6 +235,44 @@ func TestRecordedEvidence(t *testing.T) {
 		o, e := ValidateEvidence(b, exitPtr(want.exit), h, d, "/scratch")
 		if e != nil || o.Decision != want.decision {
 			t.Errorf("%s: %+v %v", name, o, e)
+		}
+	}
+}
+
+func TestValidateCampaign(t *testing.T) {
+	d := digestOf([]byte("campaign"))
+	frozen := []application.Blob{{Path: "killed.json", Data: []byte("harness")}}
+	good := []any{map[string]any{"harness": "killed.json", "harnessDigest": string(digestOf([]byte("harness")))}}
+	report := func(version, decision string, digest domain.Digest, experiments []any) []byte {
+		return encode(map[string]any{"schemaVersion": version, "runId": "5081975188247bcc0b9f33a12991f5b5", "action": "campaign", "campaignConfigDigest": string(digest), "decision": decision, "experiments": experiments})
+	}
+	for _, tc := range []struct {
+		name, version, decision string
+		digest                  domain.Digest
+		experiments             []any
+		exit                    *int
+		reason                  domain.Reason
+	}{
+		{"accept v4", "invaris.evidence/v1alpha4", "ACCEPT", d, good, exitPtr(0), ""},
+		{"reject v5", "invaris.evidence/v1alpha5", "REJECT", d, good, exitPtr(1), ""},
+		{"refuse", "invaris.evidence/v1alpha4", "REFUSE", d, good, exitPtr(2), ""},
+		{"exit mismatch", "invaris.evidence/v1alpha4", "ACCEPT", d, good, exitPtr(1), "EVIDENCE_CORRUPT"},
+		{"digest mismatch", "invaris.evidence/v1alpha4", "ACCEPT", digestOf([]byte("other")), good, exitPtr(0), "EVIDENCE_CORRUPT"},
+		{"unknown schema", "invaris.evidence/v1alpha9", "ACCEPT", d, good, exitPtr(0), "UNSUPPORTED_SCHEMA"},
+		{"check report", "invaris.evidence/v1alpha2", "ACCEPT", d, good, exitPtr(0), "UNSUPPORTED_SCHEMA"},
+		{"no experiments", "invaris.evidence/v1alpha4", "ACCEPT", d, []any{}, exitPtr(0), "EVIDENCE_CORRUPT"},
+		{"unfrozen harness", "invaris.evidence/v1alpha4", "ACCEPT", d, []any{map[string]any{"harness": "other.json", "harnessDigest": string(digestOf([]byte("harness")))}}, exitPtr(0), "EVIDENCE_CORRUPT"},
+		{"harness digest mismatch", "invaris.evidence/v1alpha4", "ACCEPT", d, []any{map[string]any{"harness": "killed.json", "harnessDigest": string(digestOf([]byte("agent")))}}, exitPtr(0), "EVIDENCE_CORRUPT"},
+	} {
+		o, e := ValidateCampaign(report(tc.version, tc.decision, tc.digest, tc.experiments), tc.exit, d, frozen)
+		if tc.reason == "" {
+			if e != nil || o.Decision != tc.decision {
+				t.Errorf("%s: %+v %v", tc.name, o, e)
+			}
+			continue
+		}
+		if e == nil || reason(e, "") != tc.reason {
+			t.Errorf("%s: err %v, want %s", tc.name, e, tc.reason)
 		}
 	}
 }

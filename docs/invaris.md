@@ -129,3 +129,34 @@ fixed hint, for example `verification evidence (command exited 0):
 UNSUPPORTED_SCHEMA; this Invaris version is not supported; see docs/invaris.md`.
 Like grader messages, it never contains paths, harness text or Invaris output;
 read the retained `evidence/verification/` files for those.
+
+## Campaign verification
+
+Set `"action": "campaign"` to gate a case on an Invaris campaign instead of a
+single `check`. `harness` then names an `invaris.campaign/v1alpha1` file, and
+`files` lists the harness files it references (paths relative to the experiment
+file, inside the campaign file's directory, at most 64):
+
+```json
+"verification": {"harness": "reviewer/campaign.json", "required": true, "timeoutSeconds": 300,
+                 "action": "campaign", "files": ["reviewer/mutate-auth.json"]}
+```
+
+The campaign file and its files are frozen at preparation like a check harness.
+For each evaluation Evaris copies the imported tree, writes the campaign file at
+the scratch root under its own name and each listed file at its path relative
+to the campaign file (refusing to replace an imported file, `PATH_UNSAFE`), and
+runs `invaris campaign <file>`. The campaign then sees the agent's tree as its
+project directory.
+
+Evaris reads only the report's `schemaVersion` (`invaris.evidence/v1alpha4` or
+`v1alpha5`), `action`, `runId`, `decision`, `campaignConfigDigest`, which
+must equal the frozen campaign file's digest, and each experiment's `harness`
+and `harnessDigest`, which must name a frozen file in `files` with that file's
+digest. It requires exit `0` for ACCEPT, `1` for REJECT and `2` for REFUSE.
+List every harness the campaign references in `files`: Invaris reads an
+unlisted harness from the agent's tree, so Evaris records that report as
+`EVIDENCE_CORRUPT` rather than accepting it. This is narrower than the full strict
+decoding used for `check`, because a campaign report is large and versioned by
+Invaris; the whole report is kept as `evidence/verification/stdout.json`. The
+decision maps as for `check`; campaign verification reports no findings.

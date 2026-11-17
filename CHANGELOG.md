@@ -38,6 +38,13 @@
   refuses an untested release with `UNAVAILABLE` / `UNSUPPORTED_TOOL_VERSION`.
   Findings accept an optional `line`. CI runs the real-Invaris job for each
   tested build, and both repositories publish the same compatibility table.
+- Verification can run an Invaris campaign: `"action": "campaign"` with the
+  campaign file as `harness` and its harness files in `files`, frozen at
+  preparation. The campaign decision gates the case like a `check` decision.
+  Every experiment in the report must have run a frozen harness file with its
+  frozen digest; a harness read from the agent's tree is `EVIDENCE_CORRUPT`.
+- The Invaris verification scratch snapshots use the experiment's
+  `limits.maxEntries`.
 
 ## 0.3.0 - 2026-11-16
 
