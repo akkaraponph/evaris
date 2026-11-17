@@ -31,6 +31,8 @@ jobs:
           commit=$(git rev-parse HEAD)
           gh run list --workflow ci.yml --commit "$commit" --json status,conclusion --limit 100 | jq -e 'any(.[]; .status == "completed" and .conclusion == "success")'
           node --test npm/evaris/test/*.test.js
+      # A bare dist/… argument is read by npm as GitHub shorthand (user/repo),
+      # so tarball paths start with ./ to stay local files.
       - name: Build and package release
         env:
           RELEASE_TAG: ${{ github.ref_name }}
@@ -42,10 +44,10 @@ jobs:
           (cd dist && sha256sum evaris-* > SHA256SUMS)
           test "$(dist/evaris-$RELEASE_TAG-linux-amd64 --version)" = "evaris $RELEASE_TAG"
           node scripts/package-npm.js "$RELEASE_TAG" dist
-          npm install --global --prefix "$RUNNER_TEMP/evaris-test" "dist/evaris-cli-${RELEASE_TAG#v}.tgz"
+          npm install --global --prefix "$RUNNER_TEMP/evaris-test" "./dist/evaris-cli-${RELEASE_TAG#v}.tgz"
           test "$("$RUNNER_TEMP/evaris-test/bin/evaris" --version)" = "evaris $RELEASE_TAG"
           "$RUNNER_TEMP/evaris-test/bin/evaris" validate --experiment testdata/valid/experiment.json
       - name: Publish with npm trusted publishing
         env:
           RELEASE_TAG: ${{ github.ref_name }}
-        run: npm publish "dist/evaris-cli-${RELEASE_TAG#v}.tgz" --access public
+        run: npm publish "./dist/evaris-cli-${RELEASE_TAG#v}.tgz" --access public
