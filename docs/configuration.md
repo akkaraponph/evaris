@@ -48,9 +48,10 @@ checks. Directory isolation is not a security sandbox. See the plan for release
 gates and verification limitations.
 
 Cases may add an optional `verification` object (P1) naming a private Invaris
-harness, `required` and `timeoutSeconds` (1–300). Validation rejects a harness
-inside a fixture or the store, a fixture containing `invaris.json`, and harnesses
-outside the supported check-only profile. See [invaris.md](invaris.md).
+harness, `required` and `timeoutSeconds` (1–300), and optionally `"action":
+"campaign"` with the campaign's harness `files`. Validation rejects a harness
+inside a fixture or the store, a fixture containing `invaris.json`, and `check`
+harnesses outside the supported profile. See [invaris.md](invaris.md).
 
 ## Command criteria
 

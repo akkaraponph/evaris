@@ -40,7 +40,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        invaris: [ee92f3c00c1b59b2f576bad05569fb6eafb83097, v0.3.0, v0.4.0]
+        invaris: [ee92f3c00c1b59b2f576bad05569fb6eafb83097, v0.3.0, v0.4.0, v0.5.0]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
@@ -56,9 +56,18 @@ jobs:
           cache: false
       - name: Provision Invaris ${{ matrix.invaris }} (outside the Evaris module)
         working-directory: invaris-src
+        env:
+          INVARIS_REF: ${{ matrix.invaris }}
         run: |
           git rev-parse HEAD
-          go build -trimpath -o "$RUNNER_TEMP/invaris" ./cmd/invaris
+          # Link a tag's version as the release archives do, so v0.5.0 and later
+          # report `invaris vX.Y.Z`. Commit builds stay unlinked.
+          case "$INVARIS_REF" in
+            v*) ldflags="-X github.com/akkaraponph/invaris/internal/engine.releaseVersion=$INVARIS_REF" ;;
+            *) ldflags="" ;;
+          esac
+          go build -trimpath -ldflags "$ldflags" -o "$RUNNER_TEMP/invaris" ./cmd/invaris
+          "$RUNNER_TEMP/invaris" --version || true
       - name: Real Invaris contract and P1 integration (offline)
         env:
           GOPROXY: "off"

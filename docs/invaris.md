@@ -7,15 +7,18 @@ subprocess; P0 workflows are unchanged.
 
 ## Tested compatibility
 
-Evaris runs the Invaris `check` action only. This table is kept identical in
-Invaris `docs/ecosystem.md`:
+Evaris runs the Invaris `check` action and, from 0.4.0, the `campaign` action
+(see [campaign verification](#campaign-verification)). Other Invaris actions,
+such as `challenge` and `mutate`, reach Evaris only inside a campaign. This
+table is kept identical in Invaris `docs/ecosystem.md`:
 
 | Evaris | Invaris build | `invaris --version` | Harness / evidence read | Status |
 | --- | --- | --- | --- | --- |
 | 0.4.0 | `ee92f3c` (pre-v0.2.0) | none (legacy) | `invaris.dev/v1alpha2` / `invaris.evidence/v1alpha2` | Tested in Evaris CI |
 | 0.4.0 | v0.3.0 | none (legacy) | same | Tested in Evaris CI |
 | 0.4.0 | v0.4.0 | none (legacy) | same | Tested in Evaris CI |
-| 0.4.0 | 0.5.x | `invaris v0.5.Z` | same; findings may carry `line` | Accepted; tested locally against a development build of the 0.5 changes, added to CI once v0.5.0 is tagged |
+| 0.4.0 | v0.5.0 | `invaris v0.5.0` | same; findings may carry `line` | Tested in Evaris CI |
+| 0.4.0 | later 0.5.x | `invaris v0.5.Z` | same | Accepted; not yet tested |
 | 0.4.0 | development build | `invaris dev` or a Go pseudo-version | same | Accepted and recorded |
 | 0.4.0 | any other release | `invaris vX.Y.Z` | not tested | `UNAVAILABLE`, `UNSUPPORTED_TOOL_VERSION` |
 | 0.3.0 and earlier | `ee92f3c` only | not checked | same, without `line` | Rejects findings that carry `line` |
@@ -40,7 +43,7 @@ not contain `invaris.json`, and no `allowedChanges` pattern may match it. Prepar
 freezes the harness bytes with the other private inputs; later edits to the
 source file do not affect existing stores. `timeoutSeconds` is 1–300.
 
-The harness must match a restricted profile:
+A `check` harness must match a restricted profile:
 
 - `version` `invaris.dev/v1alpha2`, `trustMode` `trusted-local`.
 - At least one policy, each with an explicit `"allowEmpty": false`.
@@ -49,8 +52,9 @@ The harness must match a restricted profile:
   `precedence` `refusal-first`; `allowWeakEvidence` false.
 - No `steps`, `challenges`, `adapters`, `requiredAdapters`, or provider guards.
 
-`validate` and `prepare` reject other harnesses. Invaris mutation, challenge
-and campaign features remain Invaris features; Evaris does not reimplement them.
+`validate` and `prepare` reject other `check` harnesses. Campaign files follow
+[campaign verification](#campaign-verification). Evaris does not reimplement
+Invaris challenges, mutations or campaigns; it runs the Invaris CLI.
 
 ## Evaluation
 

@@ -1,6 +1,7 @@
 // Package invaris integrates the external Invaris CLI through its versioned
 // evidence contract. It never imports Invaris packages; it validates a narrow,
-// check-only profile, tested against the Invaris versions in Tested.
+// check profile and campaign reports, tested against the Invaris versions in
+// Tested.
 package invaris
 
 import (
@@ -19,9 +20,10 @@ import (
 	"github.com/akkaraponph/evaris/internal/domain"
 )
 
-// Tested lists the Invaris builds the check profile is exercised against in
-// CI. Builds before v0.5.0 have no --version and are recorded as legacy.
-var Tested = []string{"ee92f3c00c1b59b2f576bad05569fb6eafb83097", "v0.3.0", "v0.4.0"}
+// Tested lists the Invaris builds the check and campaign profiles are exercised
+// against in CI. Builds before v0.5.0 have no --version and are recorded as
+// legacy.
+var Tested = []string{"ee92f3c00c1b59b2f576bad05569fb6eafb83097", "v0.3.0", "v0.4.0", "v0.5.0"}
 
 // SupportedReleases are the release lines (major.minor) whose --version Evaris
 // accepts. Development builds ("dev" or a pseudo-version) are accepted and
