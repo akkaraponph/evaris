@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0 - not yet released
+## 0.4.0 - 2026-11-17
 
 - `allowedChanges` entries are patterns: `*`, `?` and `[...]` match within a
   segment and a whole `**` segment matches any depth, so `app/**` authorizes a

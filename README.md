@@ -9,10 +9,12 @@ deterministic checks, independent review, and transparent evidence.
 
 ## Status
 
-Version 0.3.0 is the current release. Command criteria can leave build output
-out of their scratch snapshots (`snapshotExclude`), and command and import
-failures name the failing step and the expected value instead of a bare
-`IO_ERROR` or field name. 0.2.0 added a runbook for evaluating real external
+Version 0.4.0 is the current release. It adds single-arm acceptance mode,
+glob `allowedChanges` with `protectedPaths`, import from a Git commit, frozen
+reviewer files, per-criterion results in reports and `evaris show`, command
+`dependencies` and `limits.maxEntries`, and Invaris campaign verification with
+support for Invaris v0.3.0 through 0.5.x. See the [changelog](CHANGELOG.md).
+0.3.0 added `snapshotExclude` and step-naming failure messages; 0.2.0 added a runbook for evaluating real external
 agents ([pilot.md](docs/pilot.md)). Evaris supports experiment
 validation, blind preparation, and external-result import:
 
@@ -51,7 +53,7 @@ written by newer releases. Pin an earlier npm version to roll back.
 ## Build and verify
 
 ```sh
-go install github.com/akkaraponph/evaris/cmd/evaris@v0.3.0
+go install github.com/akkaraponph/evaris/cmd/evaris@v0.4.0
 evaris --version
 
 mkdir -p .panda-suite/build                # or build from a checkout

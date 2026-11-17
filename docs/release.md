@@ -2,7 +2,7 @@
 
 ## Supported platforms
 
-| Item | Supported in 0.3.x |
+| Item | Supported in 0.4.x |
 | --- | --- |
 | Go toolchain | 1.27.4 or newer (minimum in `go.mod`) |
 | Operating systems | Linux and macOS, amd64 and arm64 |
@@ -23,7 +23,7 @@ other version, unknown fields and duplicate keys:
 | Experiment, oracle, import request | `evaris.experiment/v1alpha1`, `evaris.oracle/v1alpha1`, `evaris.import/v1alpha1` |
 | Preparation, run, evaluation, report | `evaris.preparation/v1alpha1`, `evaris.run/v1alpha1` or `v1alpha2` (0.4.0, with a delivered revision), `evaris.evaluation/v1alpha1`, `evaris.report/v1alpha2` (0.4.0; v1alpha1 before) |
 | Comparison | `evaris.comparison/v1alpha1` |
-| Invaris harness / evidence read | `invaris.dev/v1alpha2` / `invaris.evidence/v1alpha2` |
+| Invaris harness / evidence read | `invaris.dev/v1alpha2` / `invaris.evidence/v1alpha2` for `check`; `invaris.campaign/v1alpha1` / `invaris.evidence/v1alpha4` or `v1alpha5` for `campaign` (0.4.0) |
 
 `v1alpha1` records carry no compatibility promise across minor 0.x releases. A
 release that changes a schema bumps its version, so older binaries refuse new
@@ -31,6 +31,10 @@ records instead of misreading them. Evidence stores are not migrated.
 0.3.0 adds one optional field, `snapshotExclude` on `command-exit` criteria,
 within `evaris.oracle/v1alpha1`. Strict decoding makes 0.2.0 and earlier refuse
 an oracle or preparation that uses it; records without it are unchanged.
+0.4.0 adds optional experiment and oracle fields (`mode`, `limits`,
+`reviewerFiles`, `protectedPaths`, `dependencies`, verification `action` and
+`files`) that 0.3.0 refuses, writes `evaris.report/v1alpha2`, and writes
+`evaris.run/v1alpha2` for runs with a delivered revision.
 
 ## Version string
 
@@ -46,7 +50,7 @@ From a clean checkout of the release tag, with Go 1.27.4:
 
 ```sh
 git status --porcelain   # must print nothing
-VERSION=v0.3.0
+VERSION=v0.4.0
 mkdir -p dist
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
   GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 \
@@ -85,9 +89,10 @@ or required CI check fails.
 There are no services or database migrations to deploy. Keep existing evidence
 stores intact when replacing a binary. To recover from a later release, reinstall
 the previous supported binary and retain stores written with newer schemas
-separately; older binaries may reject those records. 0.2.0 is the
-earlier release to roll back to; remove `snapshotExclude` from oracles and
-prepare again before using it, because it refuses that field. Commands and guards can have operator
+separately; older binaries may reject those records. 0.3.0 is the
+earlier release to roll back to; remove the 0.4.0 fields listed above from
+experiments and oracles and prepare again before using it, because it refuses
+them, and keep 0.4.0 stores (v1alpha2 runs and reports) apart. Commands and guards can have operator
 controlled side effects that replacing the Evaris binary cannot undo.
 
 Known limitations to state in release notes: bundled runs are synthetic
@@ -97,7 +102,7 @@ come from 3 trials with one host and model, with operator-attested host metadata
 and no semantic review, so it supports no agent or
 instruction-effectiveness claim; its grading was reproduced by an independent
 AI operator session, not by a second person; commands and Invaris guards are not
-sandboxed; and only the pinned Invaris revision is supported.
+sandboxed; and only the Invaris builds in the [compatibility table](invaris.md#tested-compatibility) are supported.
 
 ## npm package release
 
