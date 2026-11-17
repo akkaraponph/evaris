@@ -39,7 +39,7 @@ container ran as root, which can hide permission-dependent failures.
 
 ## Hosted release verification
 
-The [Go checks workflow](https://github.com/akkaraponph/evaris/actions/workflows/ci.yml)
+The [Go checks workflow](https://github.com/refactorroom/evaris/actions/workflows/ci.yml)
 runs build, vet, race tests, offline acceptance, and pinned real-Invaris
 integration on Linux and macOS. Verify the run's commit SHA against the release
 tag; local passes and runs from older revisions do not satisfy the release gate.
@@ -67,7 +67,7 @@ the timeout controls retain their one-second deadlines.
 Release steps and the support matrix are in [release.md](release.md). Release
 readiness requires hosted CI to pass on the exact release commit. Published
 versions and their checksums are listed on the repository's
-[releases page](https://github.com/akkaraponph/evaris/releases).
+[releases page](https://github.com/refactorroom/evaris/releases).
 
 Manifest benchmarks cover 10/100/1,000 files of 128 bytes each and report
 allocations and elapsed time. Results are local measurements without a pass target.
