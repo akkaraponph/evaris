@@ -26,19 +26,29 @@ type Finding struct {
 	Message string `json:"message"`
 }
 
+// CampaignResult is the decision-bearing summary for one verified experiment.
+type CampaignResult struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Stability string `json:"stability"`
+	Verdict   string `json:"verdict,omitempty"`
+}
+
 // Verification is an external verifier signal kept separate from Evaris grading.
 // Status ACCEPT/REJECT/REFUSE is the validated native decision; ERROR means the
 // tool or its evidence failed; UNAVAILABLE means it was not authorized to run.
 type Verification struct {
-	Required      bool      `json:"required"`
-	Status        string    `json:"status"`
-	SchemaVersion *string   `json:"schemaVersion"`
-	ExitCode      *int      `json:"exitCode"`
-	RunID         *string   `json:"runId"`
-	ConfigDigest  *string   `json:"configDigest"`
-	Executable    *FileRef  `json:"executable"`
-	Evidence      []FileRef `json:"evidence"`
-	Reason        Reason    `json:"reason"`
+	Required      bool             `json:"required"`
+	Status        string           `json:"status"`
+	SchemaVersion *string          `json:"schemaVersion"`
+	ExitCode      *int             `json:"exitCode"`
+	RunID         *string          `json:"runId"`
+	ConfigDigest  *string          `json:"configDigest"`
+	InputsDigest  *Digest          `json:"inputsDigest,omitempty"`
+	Campaign      []CampaignResult `json:"campaign,omitempty"`
+	Executable    *FileRef         `json:"executable"`
+	Evidence      []FileRef        `json:"evidence"`
+	Reason        Reason           `json:"reason"`
 	// Message is a catalogue message (see ValidGraderMessage) naming the
 	// failing step; omitted when there is none.
 	Message  string    `json:"message,omitempty"`
@@ -143,11 +153,12 @@ type CaseSummary struct {
 // CriterionSummary is one criterion's result in a report. Message is the
 // evaluation's catalogue message, empty when there is none.
 type CriterionSummary struct {
-	ID       string `json:"id"`
-	Required bool   `json:"required"`
-	Status   string `json:"status"`
-	Reason   Reason `json:"reason"`
-	Message  string `json:"message"`
+	ID       string           `json:"id"`
+	Required bool             `json:"required"`
+	Status   string           `json:"status"`
+	Reason   Reason           `json:"reason"`
+	Message  string           `json:"message"`
+	Campaign []CampaignResult `json:"campaign,omitempty"`
 }
 
 // ReportSchemaVersion is the report record version this build writes.

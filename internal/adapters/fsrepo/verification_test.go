@@ -57,6 +57,16 @@ func TestVerificationConfig(t *testing.T) {
 		"unknown field":        func(c map[string]any) { v(c)["program"] = "/bin/sh" },
 		"null verification":    func(c map[string]any) { c["verification"] = nil },
 		"allowed harness name": func(c map[string]any) { c["allowedChanges"] = []any{"result.txt", "invaris.json"} },
+		"dependency relative": func(c map[string]any) {
+			v(c)["dependencies"] = []any{map[string]any{"name": "node_modules", "source": "rel/dir"}}
+		},
+		"dependency nested": func(c map[string]any) { v(c)["dependencies"] = []any{map[string]any{"name": "a/b", "source": "/tmp"}} },
+		"dependency harness": func(c map[string]any) {
+			v(c)["dependencies"] = []any{map[string]any{"name": "invaris.json", "source": "/tmp"}}
+		},
+		"dependency twice": func(c map[string]any) {
+			v(c)["dependencies"] = []any{map[string]any{"name": "node_modules", "source": "/tmp"}, map[string]any{"name": "node_modules", "source": "/var"}}
+		},
 	} {
 		config, _ := verifiedFixture(t, edit)
 		if name == "harness in store" {
@@ -66,6 +76,12 @@ func TestVerificationConfig(t *testing.T) {
 		if _, e := (Repository{}).Load(context.Background(), config); e == nil {
 			t.Errorf("%s: accepted", name)
 		}
+	}
+	config, _ = verifiedFixture(t, func(c map[string]any) {
+		v(c)["dependencies"] = []any{map[string]any{"name": "node_modules", "source": "/tmp"}}
+	})
+	if _, e := (Repository{}).Load(context.Background(), config); e != nil {
+		t.Errorf("valid verification dependency rejected: %v", e)
 	}
 	config, _ = verifiedFixture(t, nil)
 	os.WriteFile(filepath.Join(filepath.Dir(config), "public", "invaris.json"), []byte("{}"), 0600)

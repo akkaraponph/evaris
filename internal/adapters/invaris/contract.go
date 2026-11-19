@@ -1,27 +1,23 @@
 // Package invaris integrates the external Invaris CLI through its versioned
 // evidence contract. It never imports Invaris packages; it validates a narrow,
-// check-only profile, tested against the Invaris versions in Tested.
+// check profile and campaign decision evidence.
 package invaris
 
 import (
 	"bytes"
-	"crypto/sha256"
 	"encoding/json"
-	"fmt"
 	"io"
 	"reflect"
 	"regexp"
-	"slices"
 	"strings"
 	"time"
 
-	"github.com/akkaraponph/evaris/internal/application"
 	"github.com/akkaraponph/evaris/internal/domain"
 )
 
-// Tested lists the Invaris builds the check profile is exercised against in
-// CI. Builds before v0.5.0 have no --version and are recorded as legacy.
-var Tested = []string{"ee92f3c00c1b59b2f576bad05569fb6eafb83097", "v0.3.0", "v0.4.0"}
+// Tested lists Invaris builds exercised in CI. The pinned legacy build only
+// supports check; campaign coverage begins at v0.3.0.
+var Tested = []string{"ee92f3c00c1b59b2f576bad05569fb6eafb83097", "v0.3.0", "v0.4.0", "v0.5.0"}
 
 // SupportedReleases are the release lines (major.minor) whose --version Evaris
 // accepts. Development builds ("dev" or a pseudo-version) are accepted and
@@ -265,6 +261,7 @@ type executable struct {
 
 // Outcome is the validated native result of one check invocation.
 type Outcome struct {
+	Campaign      []domain.CampaignResult
 	Decision      string
 	SchemaVersion string
 	RunID         string
@@ -422,6 +419,10 @@ func sameStrings(a, b []string) bool {
 // strictDecode rejects invalid UTF-8, duplicate keys, excessive depth, trailing
 // input, missing required fields, nulls outside nullable fields and unknown fields.
 func strictDecode(b []byte, out any) error {
+	return decodeJSON(b, out, true)
+}
+
+func decodeJSON(b []byte, out any, strict bool) error {
 	d := json.NewDecoder(bytes.NewReader(b))
 	d.UseNumber()
 	var read func(int) (any, error)
@@ -478,6 +479,12 @@ func strictDecode(b []byte, out any) error {
 	}
 	if _, e = d.Token(); e != io.EOF {
 		return fail("EVIDENCE_CORRUPT", "trailing JSON")
+	}
+	if !strict {
+		if json.Unmarshal(b, out) != nil {
+			return fail("EVIDENCE_CORRUPT", "JSON types")
+		}
+		return nil
 	}
 	if e = presence(v, reflect.TypeOf(out).Elem(), "$"); e != nil {
 		return e
@@ -538,63 +545,4 @@ func presence(v any, t reflect.Type, at string) error {
 		}
 	}
 	return nil
-}
-
-// Campaign report versions Evaris reads.
-var campaignVersions = []string{"invaris.evidence/v1alpha4", "invaris.evidence/v1alpha5"}
-
-// ValidateCampaign reads stdout from `invaris campaign`. Unlike check
-// evidence, which is decoded strictly in full, a campaign report is large and
-// versioned by Invaris, so only the fields Evaris relies on are checked: the
-// schema version, the action, the run ID, the decision with a matching exit
-// code (0 ACCEPT, 1 REJECT, 2 REFUSE), the digest of the frozen campaign
-// file, and that every experiment ran a frozen harness file with its digest.
-// A harness the reviewer did not freeze would otherwise be read from the
-// delivered tree. The full report is kept as evidence.
-func ValidateCampaign(b []byte, exit *int, campaignDigest domain.Digest, harnesses []application.Blob) (Outcome, error) {
-	var o Outcome
-	if len(b) > maxEvidence {
-		return o, fail("LIMIT_EXCEEDED", "evidence")
-	}
-	var r struct {
-		SchemaVersion        string `json:"schemaVersion"`
-		RunID                string `json:"runId"`
-		Action               string `json:"action"`
-		CampaignConfigDigest string `json:"campaignConfigDigest"`
-		Decision             string `json:"decision"`
-		Experiments          []struct {
-			Harness       string `json:"harness"`
-			HarnessDigest string `json:"harnessDigest"`
-		} `json:"experiments"`
-	}
-	if json.Unmarshal(b, &r) != nil {
-		return o, fail("EVIDENCE_CORRUPT", "campaign JSON")
-	}
-	if !slices.Contains(campaignVersions, r.SchemaVersion) {
-		return o, fail("UNSUPPORTED_SCHEMA", "campaign "+r.SchemaVersion)
-	}
-	if r.Action != "campaign" || !runIDPattern.MatchString(r.RunID) {
-		return o, fail("EVIDENCE_CORRUPT", "campaign identity")
-	}
-	if domain.Digest(r.CampaignConfigDigest) != campaignDigest {
-		return o, fail("EVIDENCE_CORRUPT", "campaignConfigDigest")
-	}
-	frozen := map[string]domain.Digest{}
-	for _, h := range harnesses {
-		frozen[h.Path] = domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(h.Data)))
-	}
-	if len(r.Experiments) == 0 {
-		return o, fail("EVIDENCE_CORRUPT", "campaign experiments")
-	}
-	for _, x := range r.Experiments {
-		if d, ok := frozen[x.Harness]; !ok || domain.Digest(x.HarnessDigest) != d {
-			return o, fail("EVIDENCE_CORRUPT", "campaign harness is not a frozen verification file")
-		}
-	}
-	want := map[string]int{"ACCEPT": 0, "REJECT": 1, "REFUSE": 2}
-	code, ok := want[r.Decision]
-	if !ok || exit == nil || *exit != code {
-		return o, fail("EVIDENCE_CORRUPT", "campaign decision and exit code")
-	}
-	return Outcome{Decision: r.Decision, SchemaVersion: r.SchemaVersion, RunID: r.RunID, ConfigDigest: r.CampaignConfigDigest, Findings: []domain.Finding{}}, nil
 }

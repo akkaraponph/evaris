@@ -34,7 +34,7 @@ type compareSide struct {
 }
 
 // load validates one store and selects one evaluation per prepared case/arm.
-func (s Service) load(ctx context.Context, store, name string, arms map[string]bool) (compareSide, error) {
+func (s Service) load(ctx context.Context, store, name, preparation string, arms map[string]bool) (compareSide, error) {
 	var out compareSide
 	es, runs, e := s.Repo.LoadEvaluations(ctx, store)
 	if e != nil {
@@ -45,6 +45,30 @@ func (s Service) load(ctx context.Context, store, name string, arms map[string]b
 		return out, e
 	}
 	out.runs = runs
+	if preparation != "" {
+		for _, p := range ps {
+			if p.ID == preparation {
+				ps = []domain.Preparation{p}
+				break
+			}
+		}
+		if len(ps) != 1 || ps[0].ID != preparation {
+			return out, &domain.Failure{Code: "INVALID_CONFIG", Path: name + " preparation not found"}
+		}
+		out.runs = nil
+		for _, r := range runs {
+			if r.PreparationID == preparation {
+				out.runs = append(out.runs, r)
+			}
+		}
+		filtered := make([]domain.Evaluation, 0)
+		for _, v := range es {
+			if v.PreparationID == preparation {
+				filtered = append(filtered, v)
+			}
+		}
+		es = filtered
+	}
 	for _, p := range ps {
 		if p.Mode == domain.ModeAcceptance {
 			return out, &domain.Failure{Code: "INVALID_CONFIG", Path: "acceptance mode has no arms to compare"}
@@ -87,11 +111,19 @@ func (s Service) load(ctx context.Context, store, name string, arms map[string]b
 // Compare loads, validates and compares two stores, then persists the result in
 // the left store. A non-comparable result is still persisted with its reasons.
 func (s Service) Compare(ctx context.Context, left, right, mode string) (domain.Comparison, error) {
+	return s.ComparePreparations(ctx, left, right, mode, "", "")
+}
+
+// ComparePreparations explicitly selects a trial from each store.
+func (s Service) ComparePreparations(ctx context.Context, left, right, mode, leftPreparation, rightPreparation string) (domain.Comparison, error) {
+	if (leftPreparation == "") != (rightPreparation == "") {
+		return domain.Comparison{}, &domain.Failure{Code: "INVALID_CONFIG", Path: "supply both preparation IDs"}
+	}
 	var leftArms, rightArms map[string]bool
 	switch mode {
 	case "arms":
-		if filepath.Clean(left) != filepath.Clean(right) {
-			return domain.Comparison{}, &domain.Failure{Code: "INVALID_CONFIG", Path: "arms mode compares baseline and specialist within one store"}
+		if filepath.Clean(left) != filepath.Clean(right) || leftPreparation != rightPreparation {
+			return domain.Comparison{}, &domain.Failure{Code: "INVALID_CONFIG", Path: "arms mode compares baseline and specialist within one preparation of a store"}
 		}
 		leftArms, rightArms = map[string]bool{"baseline": true}, map[string]bool{"specialist": true}
 	case "revisions":
@@ -100,11 +132,11 @@ func (s Service) Compare(ctx context.Context, left, right, mode string) (domain.
 	default:
 		return domain.Comparison{}, &domain.Failure{Code: "INVALID_CONFIG", Path: "mode"}
 	}
-	l, e := s.load(ctx, left, "left", leftArms)
+	l, e := s.load(ctx, left, "left", leftPreparation, leftArms)
 	if e != nil {
 		return domain.Comparison{}, e
 	}
-	r, e := s.load(ctx, right, "right", rightArms)
+	r, e := s.load(ctx, right, "right", rightPreparation, rightArms)
 	if e != nil {
 		return domain.Comparison{}, e
 	}

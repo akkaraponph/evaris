@@ -19,6 +19,13 @@ func TestMatchPattern(t *testing.T) {
 		{"**/.env", ".env", true},
 		{"result.txt", "result.txt", true},
 		{"result.txt", "x/result.txt", false},
+		// Literal paths with glob characters still match themselves
+		// (Next.js dynamic routes), and keep their glob meaning otherwise.
+		{"app/(site)/products/[id]/page.tsx", "app/(site)/products/[id]/page.tsx", true},
+		{"app/[...slug]/page.tsx", "app/[...slug]/page.tsx", true},
+		{"app/[id]/page.tsx", "app/i/page.tsx", true},
+		{"app/[id]/page.tsx", "app/[id]/other.tsx", false},
+		{"docs/what?.md", "docs/what?.md", true},
 	} {
 		if got := MatchPattern(c.pattern, c.name); got != c.want {
 			t.Errorf("MatchPattern(%q, %q) = %v, want %v", c.pattern, c.name, got, c.want)
@@ -44,15 +51,21 @@ func TestGlobCannotAllowHarness(t *testing.T) {
 	c := Case{ID: "c", Fixture: "f", Task: "t", Oracle: "o", SourceRevision: "r", AllowedChanges: []string{"**"},
 		Verification: &VerificationConfig{Harness: "h.json", Required: true, TimeoutSeconds: 30}}
 	base.Cases = []Case{c}
-	if err := ValidateExperiment(base); err == nil || err.Error() != "PATH_UNSAFE: experiment" {
+	if err := ValidateExperiment(base); err == nil || err.Error() != `PATH_UNSAFE: case c allowedChanges "**" matches invaris.json; add invaris.json to protectedPaths` {
 		t.Fatalf("** with verification: %v", err)
 	}
+	// The deny-list form works with verification once invaris.json is protected.
+	base.Cases[0].ProtectedPaths = []string{"invaris.json", "LICENSE"}
+	if err := ValidateExperiment(base); err != nil {
+		t.Fatalf("** with protected invaris.json refused: %v", err)
+	}
+	base.Cases[0].ProtectedPaths = nil
 	base.Cases[0].AllowedChanges = []string{"app/**"}
 	if err := ValidateExperiment(base); err != nil {
 		t.Fatalf("app/** refused: %v", err)
 	}
 	base.Cases[0].ProtectedPaths = []string{"a/[/b"}
-	if err := ValidateExperiment(base); err == nil || err.Error() != "PATH_UNSAFE: experiment" {
+	if err := ValidateExperiment(base); err == nil || err.Error() != `PATH_UNSAFE: case c protectedPaths "a/[/b" is not a valid pattern` {
 		t.Fatalf("malformed protected pattern: %v", err)
 	}
 }

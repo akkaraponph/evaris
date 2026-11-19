@@ -275,21 +275,57 @@ func TestCampaignFilesCannotBeReplaced(t *testing.T) {
 	}
 }
 
-// A campaign harness the reviewer did not freeze is read from the delivered
-// tree by Invaris; Evaris must refuse that report, not accept it.
-func TestRealInvarisCampaignUnfrozenHarness(t *testing.T) {
-	exe := os.Getenv("EVARIS_TEST_INVARIS")
-	if exe == "" {
-		t.Skip("EVARIS_TEST_INVARIS unset: real Invaris campaign verification NOT verified")
-	}
+func TestCampaignRefusesUnfrozenHarnessBeforeRunning(t *testing.T) {
 	f := campaignRun(t, "accept.json")
 	b, err := os.ReadFile("../../../testdata/invaris/campaign/killed.json")
 	if err != nil {
 		t.Fatal(err)
 	}
 	os.WriteFile(filepath.Join(f.SnapshotRoot, "killed.json"), b, 0o600)
+	exe := fake(t, []byte(`{}`), "exit 0")
 	v, _ := Client{Executable: exe}.Verify(context.Background(), f)
-	if v.Status == "ACCEPT" || v.Reason != "EVIDENCE_CORRUPT" {
-		t.Fatalf("delivered harness accepted: %+v", v)
+	if v.Status != "ERROR" || v.Reason != "INVALID_CONFIG" || calls(exe) != 0 {
+		t.Fatalf("delivered harness should be refused before execution: %+v", v)
+	}
+}
+
+// Verification dependencies are linked at the scratch root before Invaris
+// runs, stay out of the scratch manifests, and are refused when the source is
+// missing or the imported tree already holds the name.
+func TestVerificationDependencies(t *testing.T) {
+	harness := harnessBytes("/guard")
+	deps := canonical(t)
+	os.WriteFile(filepath.Join(deps, "marker"), []byte("x"), 0o600)
+	withDeps := func(f application.FrozenRun, source string) application.FrozenRun {
+		cfg := *f.Case.Case.Verification
+		cfg.Dependencies = []domain.Dependency{{Name: "node_modules", Source: source}}
+		f.Case.Case.Verification = &cfg
+		return f
+	}
+	exe := fake(t, templateFor("ACCEPT", harness), `test -f "$d/node_modules/marker" || exit 9; sed "s#@TARGET@#$d#g" @TEMPLATE@; exit 0`)
+	v, blobs := Client{Executable: exe}.Verify(context.Background(), withDeps(frozen(t, "approved\n", harness, true), deps))
+	if v.Status != "ACCEPT" || len(blobs) != 3 {
+		t.Fatalf("linked dependency: %+v", v)
+	}
+	var rec processRecord
+	if e := json.Unmarshal(blobs[2].Data, &rec); e != nil || rec.ScratchChanged {
+		t.Fatalf("dependency link counted as a scratch change: %v %+v", e, rec)
+	}
+	for _, ref := range rec.ScratchBefore {
+		if strings.HasPrefix(ref.Path, "node_modules") {
+			t.Fatalf("dependency in scratch manifest: %s", ref.Path)
+		}
+	}
+
+	v, _ = Client{Executable: exe}.Verify(context.Background(), withDeps(frozen(t, "approved\n", harness, true), filepath.Join(deps, "absent")))
+	if v.Status != "ERROR" || v.Reason != "TOOL_MISSING" || !strings.HasPrefix(v.Message, "link dependencies") {
+		t.Fatalf("missing source: %+v", v)
+	}
+	f := withDeps(frozen(t, "approved\n", harness, true), deps)
+	os.MkdirAll(filepath.Join(f.SnapshotRoot, "node_modules"), 0o700)
+	before := calls(exe)
+	v, _ = Client{Executable: exe}.Verify(context.Background(), f)
+	if v.Status != "ERROR" || v.Reason != "PATH_UNSAFE" || calls(exe) != before {
+		t.Fatalf("imported node_modules: %+v", v)
 	}
 }

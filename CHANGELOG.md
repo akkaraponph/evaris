@@ -1,5 +1,34 @@
 # Changelog
 
+## Unreleased
+
+Fixes found by evaluating a real NestJS and Next.js remaster with Evaris 0.4.0
+and Invaris 0.5.0.
+
+- Fixed: an `allowedChanges` or `protectedPaths` entry always matches the
+  identical path. 0.4.0 read literal paths as patterns, so a listed Next.js
+  route such as `app/products/[id]/page.tsx` no longer matched itself and an
+  unchanged experiment failed source authorization on a correct delivery.
+- A failed `source-authorization` criterion now has a catalogue message and
+  writes `evidence/source-authorization.json`, listing each unauthorized path,
+  how it changed and which rule it broke. Before, it failed with no message or
+  evidence.
+- With verification, `allowedChanges: ["**"]` is accepted when `protectedPaths`
+  also covers `invaris.json`, so the deny-list form works with Invaris. Pattern
+  errors name the case, field and pattern instead of `PATH_UNSAFE: experiment`.
+- `verification.dependencies` links directories such as `node_modules` into the
+  verification scratch root, so an Invaris campaign whose harnesses declare
+  workspace dependencies can run against the imported tree. Before, such a
+  campaign was refused with `workspace_prepare_failed`.
+
+- Campaign verification checks the complete frozen experiment and repeat set,
+  recomputes the native decision, and shows each experiment verdict in reports.
+  The real-binary CI matrix now includes tagged Invaris 0.5.0.
+- Comparisons check verifier executable and input digests. Use
+  `--left-preparation` and `--right-preparation` to pair explicit trials.
+- Import can derive observed Claude Code session metadata and confirmed
+  instruction reads from a retained stream JSON transcript.
+
 ## 0.4.0 - 2026-11-17
 
 - `allowedChanges` entries are patterns: `*`, `?` and `[...]` match within a

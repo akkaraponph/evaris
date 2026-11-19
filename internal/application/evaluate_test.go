@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/akkaraponph/evaris/internal/domain"
 	"testing"
@@ -40,9 +41,28 @@ func TestUnauthorizedChanges(t *testing.T) {
 		case "protected":
 			f.Run.FinalFiles[1].SHA256 = "changed"
 		}
-		if r := authorization(f); r.Status != "FAIL" {
-			t.Fatalf("%s: %+v", mode, r)
+		want := map[string]AuthorizationViolation{
+			"modified":  {"source", "modified", "not-allowed"},
+			"deleted":   {"source", "removed", "not-allowed"},
+			"added":     {"unauthorized", "added", "not-allowed"},
+			"mode":      {"source", "mode", "not-allowed"},
+			"protected": {"TASK.txt", "modified", "generated"},
+		}[mode]
+		r, blobs := authorization(f)
+		if r.Status != "FAIL" || !domain.ValidGraderMessage(r.Message) || r.Message == "" || len(r.Evidence) != 1 || len(blobs) != 1 ||
+			r.Evidence[0].Path != AuthorizationEvidencePath || blobs[0].Path != AuthorizationEvidencePath || r.Evidence[0].Bytes != int64(len(blobs[0].Data)) {
+			t.Fatalf("%s: %+v %d blobs", mode, r, len(blobs))
 		}
+		var ev AuthorizationEvidence
+		if err := json.Unmarshal(blobs[0].Data, &ev); err != nil || len(ev.Violations) != 1 || ev.Violations[0] != want || ev.Omitted != 0 {
+			t.Fatalf("%s: evidence %s", mode, blobs[0].Data)
+		}
+	}
+	// A passing run writes no evidence.
+	f := FrozenRun{Run: domain.Run{CaseID: "c", ArmID: "baseline"}, Case: FrozenCase{Case: domain.Case{AllowedChanges: []string{"**"}}}, Preparation: domain.Preparation{Tasks: []domain.PreparedTask{{CaseID: "c", ArmID: "baseline", InitialFiles: domain.Manifest{{Path: "source", SHA256: "same"}}}}}}
+	f.Run.FinalFiles = domain.Manifest{{Path: "tree/source", SHA256: "changed"}}
+	if r, blobs := authorization(f); r.Status != "PASS" || len(blobs) != 0 || len(r.Evidence) != 0 || r.Message != "" {
+		t.Fatalf("pass: %+v", r)
 	}
 }
 
@@ -87,13 +107,13 @@ func TestGlobAuthorization(t *testing.T) {
 	for i := range 120 {
 		files = append(files, fmt.Sprintf("app/pages/p%d.tsx", i))
 	}
-	if r := authorization(globRun([]string{"app/**"}, nil, files...)); r.Status != "PASS" {
+	if r, _ := authorization(globRun([]string{"app/**"}, nil, files...)); r.Status != "PASS" {
 		t.Fatalf("120 generated files: %+v", r)
 	}
-	if r := authorization(globRun([]string{"app/**"}, []string{"**/.env"}, append(files, "app/.env")...)); r.Status != "FAIL" {
+	if r, _ := authorization(globRun([]string{"app/**"}, []string{"**/.env"}, append(files, "app/.env")...)); r.Status != "FAIL" {
 		t.Fatalf("protected .env passed: %+v", r)
 	}
-	if r := authorization(globRun([]string{"app/**"}, nil, "lib/x.ts")); r.Status != "FAIL" {
+	if r, _ := authorization(globRun([]string{"app/**"}, nil, "lib/x.ts")); r.Status != "FAIL" {
 		t.Fatalf("change outside the glob passed: %+v", r)
 	}
 }
@@ -101,7 +121,7 @@ func TestGlobAuthorization(t *testing.T) {
 func TestGlobStillProtectsGeneratedFiles(t *testing.T) {
 	f := globRun([]string{"**"}, nil)
 	f.Run.FinalFiles[1].SHA256 = "changed"
-	if r := authorization(f); r.Status != "FAIL" {
+	if r, _ := authorization(f); r.Status != "FAIL" {
 		t.Fatalf("changed TASK.txt passed under **: %+v", r)
 	}
 }

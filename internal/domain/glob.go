@@ -26,9 +26,15 @@ func ValidPattern(p string) bool {
 	return true
 }
 
-// MatchPattern reports whether the slash path name matches pattern. Segments
-// match with path.Match; a "**" segment matches zero or more whole segments.
+// MatchPattern reports whether the slash path name matches pattern. A pattern
+// always matches the identical path, so a literal path containing glob
+// characters, such as a Next.js route "app/[id]/page.tsx", keeps matching
+// itself as it did before patterns were introduced. Otherwise segments match
+// with path.Match, and a "**" segment matches zero or more whole segments.
 func MatchPattern(pattern, name string) bool {
+	if pattern == name {
+		return true
+	}
 	return matchSegments(strings.Split(pattern, "/"), strings.Split(name, "/"))
 }
 

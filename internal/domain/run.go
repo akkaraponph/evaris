@@ -40,10 +40,12 @@ type ImportRequest struct {
 	// a git FinalSource it must equal the resolved commit.
 	DeliveredRevision *string  `json:"deliveredRevision,omitempty"`
 	Transcripts       []string `json:"transcripts"`
-	Diff              *string  `json:"diff"`
-	Observed          Observed `json:"observed"`
-	Limitations       []string `json:"limitations"`
-	Origin            string   `json:"origin"`
+	// ClaudeTranscript optionally derives observed metadata and is retained.
+	ClaudeTranscript string   `json:"claudeTranscript,omitempty"`
+	Diff             *string  `json:"diff"`
+	Observed         Observed `json:"observed"`
+	Limitations      []string `json:"limitations"`
+	Origin           string   `json:"origin"`
 }
 
 // FinalSource imports the delivered work from a Git commit. Kind is "git";

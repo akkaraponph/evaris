@@ -101,6 +101,25 @@ the commit the agent delivered; a mismatch fails with `REVISION_MISMATCH` and
 names the expected value. Record the delivered commit in the optional
 `deliveredRevision`.
 
+### Import Claude Code stream metadata
+
+For an external Claude Code session launched in the prepared workspace, capture
+`--output-format stream-json --verbose` output and set the optional
+`"claudeTranscript": "run.jsonl"` field in the import request. Put the final
+response separately in `finalResponse`. Evaris retains the original stream as
+a transcript and checks that it contains a single complete session whose
+initial working directory matches the prepared task.
+
+Evaris fills the host version, model, tool list, permission mode, and session
+ID from the stream. Set those observed fields to `null` to derive them.
+Conflicting supplied values fail import. Evaris also adds confirmed instruction
+reads when a successful `Read` returns the prepared file contents or a
+successful `Bash` result matches one unique prepared instruction in full.
+Line numbers and the final newline are normalized. A missing match leaves
+unobserved instruction state unknown. Record `[]` only when your run protocol
+independently establishes that the arm loaded no instructions. Record budget,
+model settings, and fresh context from your launch protocol.
+
 ### Import from a Git repository
 
 When the agent worked in a real repository instead of the prepared workspace,

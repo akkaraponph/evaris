@@ -239,3 +239,87 @@ func TestP1OfflineIntegration(t *testing.T) {
 	}
 	p1Workflow(t, setupP1(t, func(*harness, func(string) string) string { return exe }))
 }
+
+// TestRealInvarisCampaignWorkflow uses a benign behavior fixture. Both ordinary
+// tests pass, while only one version can detect the controlled change.
+func TestRealInvarisCampaignWorkflow(t *testing.T) {
+	exe := os.Getenv("EVARIS_TEST_INVARIS")
+	if exe == "" {
+		t.Skip("EVARIS_TEST_INVARIS unset")
+	}
+	h := &p1{harness: newHarness(t), invaris: exe}
+	project := h.project("../../examples/offline", "campaign")
+	read := func(path string) []byte {
+		t.Helper()
+		b, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	write := func(path string, data []byte) {
+		t.Helper()
+		if err := os.WriteFile(path, data, 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, file := range []string{"accept.json", "killed.json", "behavior.sh", "test.sh", "validate.sh"} {
+		dir := "public"
+		if strings.HasSuffix(file, ".json") {
+			dir = "reviewer"
+		}
+		write(filepath.Join(project, dir, file), read(filepath.Join("../../testdata/invaris/campaign", file)))
+	}
+	var config map[string]any
+	exp := filepath.Join(project, "experiment.json")
+	if err := json.Unmarshal(read(exp), &config); err != nil {
+		t.Fatal(err)
+	}
+	c := config["cases"].([]any)[0].(map[string]any)
+	c["allowedChanges"] = []string{"result.txt", "test.sh"}
+	c["verification"] = map[string]any{"harness": "reviewer/accept.json", "required": true,
+		"timeoutSeconds": 60, "action": "campaign", "files": []string{"reviewer/killed.json"}}
+	data, err := json.Marshal(config)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(exp, data)
+	const oracle = `{"schemaVersion":"evaris.oracle/v1alpha1","criteria":[{"id":"ordinary-test","kind":"command-exit","required":true,"expected":0,"command":{"program":"/bin/sh","args":["test.sh"],"envAllowlist":[]}}]}`
+	write(filepath.Join(project, "reviewer", "oracle.json"), []byte(oracle))
+
+	store := filepath.Join(project, "evidence")
+	var prep domain.Preparation
+	h.must(0, &prep, "prepare", "--experiment", exp, "--tasks-root", filepath.Join(h.root, "tasks"))
+	for _, task := range prep.Tasks {
+		code, status, verdict := 0, "ACCEPT", "KILLED"
+		if task.ArmID == "specialist" {
+			p := filepath.Join(prep.TasksRoot, task.Workspace, "test.sh")
+			original := string(read(p))
+			weak := strings.Replace(original, `[ "$actual" = covered-original ]`, `[ -n "$actual" ]`, 1)
+			if weak == original {
+				t.Fatal("fixture assertion not found")
+			}
+			write(p, []byte(weak))
+			code, status, verdict = 1, "REJECT", "SURVIVED"
+		}
+		run := h.control(store, prep, task, "approved\n", controlMetadata(task.ArmID, task.ArmID))
+		evaluation := h.verified(code, store, run.ID)
+		if len(evaluation.Graders) != 2 || evaluation.Graders[0].Status != "PASS" || evaluation.Graders[1].Status != "PASS" {
+			t.Fatalf("ordinary grading did not pass: %+v", evaluation.Graders)
+		}
+		v := evaluation.Verification
+		if v == nil || v.Status != status || len(v.Campaign) != 1 || v.Campaign[0].Verdict != verdict {
+			t.Fatalf("want campaign %s (%s), got %+v", status, verdict, v)
+		}
+		shown := h.must(0, nil, "show", "--store", store, "--evaluation", evaluation.ID, "--criterion", "verification")
+		if !strings.Contains(string(shown), `experiment "killed" (mutation): `+verdict) {
+			t.Fatalf("campaign outcome missing from show: %s", shown)
+		}
+	}
+	var report domain.Report
+	h.must(1, &report, "report", "--store", store)
+	criteria := report.Cases[1].Criteria
+	if len(criteria) != 3 || len(criteria[2].Campaign) != 1 || criteria[2].Campaign[0].Verdict != "SURVIVED" {
+		t.Fatalf("campaign outcome missing from report: %+v", criteria)
+	}
+}

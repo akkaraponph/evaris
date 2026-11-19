@@ -7,15 +7,17 @@ subprocess; P0 workflows are unchanged.
 
 ## Tested compatibility
 
-Evaris runs the Invaris `check` action only. This table is kept identical in
-Invaris `docs/ecosystem.md`:
+Evaris runs Invaris `check` and, from 0.4.0, [campaigns](#campaign-verification).
+Invaris `challenge` and `mutate` reach Evaris through campaigns.
+This table is kept identical in Invaris `docs/ecosystem.md`:
 
 | Evaris | Invaris build | `invaris --version` | Harness / evidence read | Status |
 | --- | --- | --- | --- | --- |
 | 0.4.0 | `ee92f3c` (pre-v0.2.0) | none (legacy) | `invaris.dev/v1alpha2` / `invaris.evidence/v1alpha2` | Tested in Evaris CI |
 | 0.4.0 | v0.3.0 | none (legacy) | same | Tested in Evaris CI |
 | 0.4.0 | v0.4.0 | none (legacy) | same | Tested in Evaris CI |
-| 0.4.0 | 0.5.x | `invaris v0.5.Z` | same; findings may carry `line` | Accepted; tested locally against a development build of the 0.5 changes, added to CI once v0.5.0 is tagged |
+| Unreleased | v0.5.0 | `invaris v0.5.0` | same; findings may carry `line` | Included in the real-binary CI matrix |
+| 0.4.0 and later | later 0.5.x | `invaris v0.5.Z` | same | Accepted |
 | 0.4.0 | development build | `invaris dev` or a Go pseudo-version | same | Accepted and recorded |
 | 0.4.0 | any other release | `invaris vX.Y.Z` | not tested | `UNAVAILABLE`, `UNSUPPORTED_TOOL_VERSION` |
 | 0.3.0 and earlier | `ee92f3c` only | not checked | same, without `line` | Rejects findings that carry `line` |
@@ -40,7 +42,7 @@ not contain `invaris.json`, and no `allowedChanges` pattern may match it. Prepar
 freezes the harness bytes with the other private inputs; later edits to the
 source file do not affect existing stores. `timeoutSeconds` is 1–300.
 
-The harness must match a restricted profile:
+A `check` harness must match a restricted profile:
 
 - `version` `invaris.dev/v1alpha2`, `trustMode` `trusted-local`.
 - At least one policy, each with an explicit `"allowEmpty": false`.
@@ -49,8 +51,8 @@ The harness must match a restricted profile:
   `precedence` `refusal-first`; `allowWeakEvidence` false.
 - No `steps`, `challenges`, `adapters`, `requiredAdapters`, or provider guards.
 
-`validate` and `prepare` reject other harnesses. Invaris mutation, challenge
-and campaign features remain Invaris features; Evaris does not reimplement them.
+`validate` and `prepare` reject other `check` harnesses. Campaign configurations
+follow the [campaign verification profile](#campaign-verification).
 
 ## Evaluation
 
@@ -60,7 +62,7 @@ evaris evaluate --store /abs/evidence --run RUN_ID --allow-commands --invaris /a
 
 Evaris copies the imported final tree into a new scratch directory, writes the
 frozen harness there as `invaris.json`, and runs
-`<invaris> check <scratch>/invaris.json` from that directory. Only `PATH` is
+`<invaris> check <scratch>/invaris.json` from that directory for the `check` profile. Only `PATH` is
 inherited from the environment. Stdout is limited to 4 MiB and stderr to 64 KiB.
 
 | Situation | `verification.status` | Reason |
@@ -149,14 +151,39 @@ to the campaign file (refusing to replace an imported file, `PATH_UNSAFE`), and
 runs `invaris campaign <file>`. The campaign then sees the agent's tree as its
 project directory.
 
-Evaris reads only the report's `schemaVersion` (`invaris.evidence/v1alpha4` or
-`v1alpha5`), `action`, `runId`, `decision`, `campaignConfigDigest`, which
-must equal the frozen campaign file's digest, and each experiment's `harness`
-and `harnessDigest`, which must name a frozen file in `files` with that file's
-digest. It requires exit `0` for ACCEPT, `1` for REJECT and `2` for REFUSE.
-List every harness the campaign references in `files`: Invaris reads an
-unlisted harness from the agent's tree, so Evaris records that report as
-`EVIDENCE_CORRUPT` rather than accepting it. This is narrower than the full strict
-decoding used for `check`, because a campaign report is large and versioned by
-Invaris; the whole report is kept as `evidence/verification/stdout.json`. The
-decision maps as for `check`; campaign verification reports no findings.
+Harnesses whose `workspace` block declares `dependencies`, such as
+`node_modules`, need that directory in the project directory. The imported tree
+holds no dependencies, so list them under `verification.dependencies` with an
+absolute source directory, as for `command-exit` criteria:
+
+```json
+"verification": {"harness": "reviewer/campaign.json", "required": true, "timeoutSeconds": 300,
+                 "action": "campaign", "files": ["reviewer/mutate-auth.json"],
+                 "dependencies": [{"name": "node_modules", "source": "/home/me/app/node_modules"}]}
+```
+
+Evaris links each one at the scratch root after copying the tree and writing
+the frozen files, and leaves the links out of the scratch manifests. A missing
+source is `ERROR` (`TOOL_MISSING`, step `link dependencies`); an imported tree
+that already holds the name is `PATH_UNSAFE`. A name may not be the harness or
+a listed file. Dependencies are not copied, hashed or frozen, and a command can
+write through the link; prefer a dedicated installed copy. `check` verification
+accepts the same field.
+
+List every referenced harness in `files`. Evaris refuses missing references
+during configuration validation and checks them again before invoking Invaris.
+
+Evaris checks the campaign identity and digest, then matches every reported
+experiment in declaration order, including its kind, harness digest, reference
+ID, and expected repeat count. It requires full campaign selection and one
+record for every attempt, including attempts that could not start. It
+reconstructs aggregate verdicts and evaluates the frozen acceptance policy
+against those results. Exit `0` must match ACCEPT, `1` REJECT, and `2` REFUSE.
+Missing, extra, duplicated, or inconsistent decision evidence gives
+`ERROR` with `EVIDENCE_CORRUPT`.
+
+The decision-bearing summaries appear in the evaluation's `verification.campaign`,
+in reports, and in `evaris show --criterion verification`. Full v1alpha4 or
+v1alpha5 native output remains in `evidence/verification/stdout.json` for
+inspecting child evidence with `invaris explain`. The evaluation also records
+`verification.inputsDigest` for use in [comparisons](comparison.md).

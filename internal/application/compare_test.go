@@ -86,6 +86,25 @@ func TestCompareAmbiguousTrials(t *testing.T) {
 	}
 }
 
+func TestCompareExplicitTrial(t *testing.T) {
+	d := &storeData{}
+	trial(d, "p1", "PASS", "PASS", time.Now())
+	trial(d, "p2", "PASS", "FAIL", time.Now())
+	s, _ := compareService(map[string]*storeData{"/store": d})
+	for _, tc := range []struct {
+		id        string
+		regressed bool
+	}{{"p1", false}, {"p2", true}} {
+		c, err := s.ComparePreparations(context.Background(), "/store", "/store", "arms", tc.id, tc.id)
+		if err != nil || !c.Comparable || c.Regressed() != tc.regressed {
+			t.Fatalf("trial %s: %+v %v", tc.id, c, err)
+		}
+	}
+	if _, err := s.ComparePreparations(context.Background(), "/store", "/store", "arms", "p1", "p2"); err == nil {
+		t.Fatal("arms from different preparations were paired")
+	}
+}
+
 func TestReevaluationNotIndependent(t *testing.T) {
 	d := &storeData{}
 	now := time.Now()

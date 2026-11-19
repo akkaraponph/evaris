@@ -240,39 +240,71 @@ func TestRecordedEvidence(t *testing.T) {
 }
 
 func TestValidateCampaign(t *testing.T) {
-	d := digestOf([]byte("campaign"))
+	config := []byte(`{"version":"invaris.campaign/v1alpha1","experiments":[
+		{"id":"first","kind":"mutation","harness":"killed.json","experimentId":"m","repeat":2},
+		{"id":"second","kind":"mutation","harness":"killed.json","experimentId":"m","repeat":1}
+	],"acceptance":{"requireNoSurvivors":true,"requireNoInconclusive":true}}`)
 	frozen := []application.Blob{{Path: "killed.json", Data: []byte("harness")}}
-	good := []any{map[string]any{"harness": "killed.json", "harnessDigest": string(digestOf([]byte("harness")))}}
-	report := func(version, decision string, digest domain.Digest, experiments []any) []byte {
-		return encode(map[string]any{"schemaVersion": version, "runId": "5081975188247bcc0b9f33a12991f5b5", "action": "campaign", "campaignConfigDigest": string(digest), "decision": decision, "experiments": experiments})
+	experiment := func(id string, repeats int, verdict string) map[string]any {
+		attempts := []any{}
+		for i := 1; i <= repeats; i++ {
+			attempts = append(attempts, map[string]any{"id": fmt.Sprintf("%s#%d", id, i), "index": i, "execution": "EXECUTED", "verdict": verdict,
+				"mutation": map[string]any{"id": "m", "verdict": verdict}})
+		}
+		return map[string]any{"id": id, "kind": "mutation", "harness": "killed.json", "harnessDigest": digestOf([]byte("harness")),
+			"referenceId": "m", "repeat": repeats, "selection": "SELECTED", "stability": "CONSISTENT", "aggregateVerdict": verdict, "attempts": attempts}
 	}
 	for _, tc := range []struct {
-		name, version, decision string
-		digest                  domain.Digest
-		experiments             []any
-		exit                    *int
-		reason                  domain.Reason
+		name string
+		edit func(map[string]any, []any)
+		exit int
+		want string
 	}{
-		{"accept v4", "invaris.evidence/v1alpha4", "ACCEPT", d, good, exitPtr(0), ""},
-		{"reject v5", "invaris.evidence/v1alpha5", "REJECT", d, good, exitPtr(1), ""},
-		{"refuse", "invaris.evidence/v1alpha4", "REFUSE", d, good, exitPtr(2), ""},
-		{"exit mismatch", "invaris.evidence/v1alpha4", "ACCEPT", d, good, exitPtr(1), "EVIDENCE_CORRUPT"},
-		{"digest mismatch", "invaris.evidence/v1alpha4", "ACCEPT", digestOf([]byte("other")), good, exitPtr(0), "EVIDENCE_CORRUPT"},
-		{"unknown schema", "invaris.evidence/v1alpha9", "ACCEPT", d, good, exitPtr(0), "UNSUPPORTED_SCHEMA"},
-		{"check report", "invaris.evidence/v1alpha2", "ACCEPT", d, good, exitPtr(0), "UNSUPPORTED_SCHEMA"},
-		{"no experiments", "invaris.evidence/v1alpha4", "ACCEPT", d, []any{}, exitPtr(0), "EVIDENCE_CORRUPT"},
-		{"unfrozen harness", "invaris.evidence/v1alpha4", "ACCEPT", d, []any{map[string]any{"harness": "other.json", "harnessDigest": string(digestOf([]byte("harness")))}}, exitPtr(0), "EVIDENCE_CORRUPT"},
-		{"harness digest mismatch", "invaris.evidence/v1alpha4", "ACCEPT", d, []any{map[string]any{"harness": "killed.json", "harnessDigest": string(digestOf([]byte("agent")))}}, exitPtr(0), "EVIDENCE_CORRUPT"},
+		{"accept", nil, 0, "ACCEPT"},
+		{"reject v5", func(m map[string]any, xs []any) {
+			m["schemaVersion"], m["decision"] = "invaris.evidence/v1alpha5", "REJECT"
+			xs[1] = experiment("second", 1, "SURVIVED")
+		}, 1, "REJECT"},
+		{"incomplete cleanup", func(m map[string]any, _ []any) {
+			m["decision"] = "REFUSE"
+			m["stages"].([]any)[1].(map[string]any)["status"] = "FAILED"
+		}, 2, "REFUSE"},
+		{"exit mismatch", nil, 1, ""},
+		{"digest mismatch", func(m map[string]any, _ []any) { m["campaignConfigDigest"] = "other" }, 0, ""},
+		{"unfrozen harness", func(_ map[string]any, xs []any) { xs[0].(map[string]any)["harness"] = "other.json" }, 0, ""},
+		{"omitted experiment", func(m map[string]any, xs []any) { m["experiments"] = xs[:1] }, 0, ""},
+		{"duplicate experiment", func(_ map[string]any, xs []any) { xs[1] = xs[0] }, 0, ""},
+		{"omitted repeat", func(_ map[string]any, xs []any) { xs[0] = experiment("first", 1, "KILLED") }, 0, ""},
+		{"duplicate repeat", func(_ map[string]any, xs []any) {
+			attempts := xs[0].(map[string]any)["attempts"].([]any)
+			attempts[1] = attempts[0]
+		}, 0, ""},
+		{"wrong child evidence", func(_ map[string]any, xs []any) {
+			attempt := xs[0].(map[string]any)["attempts"].([]any)[0].(map[string]any)
+			attempt["mutation"] = map[string]any{"id": "m", "verdict": "SURVIVED"}
+		}, 0, ""},
+		{"false acceptance", func(_ map[string]any, xs []any) { xs[1] = experiment("second", 1, "SURVIVED") }, 0, ""},
+		{"false aggregate", func(_ map[string]any, xs []any) {
+			xs[0].(map[string]any)["aggregateVerdict"] = "SURVIVED"
+		}, 0, ""},
 	} {
-		o, e := ValidateCampaign(report(tc.version, tc.decision, tc.digest, tc.experiments), tc.exit, d, frozen)
-		if tc.reason == "" {
-			if e != nil || o.Decision != tc.decision {
-				t.Errorf("%s: %+v %v", tc.name, o, e)
+		t.Run(tc.name, func(t *testing.T) {
+			xs := []any{experiment("first", 2, "KILLED"), experiment("second", 1, "KILLED")}
+			m := map[string]any{"schemaVersion": "invaris.evidence/v1alpha4", "runId": "5081975188247bcc0b9f33a12991f5b5",
+				"action": "campaign", "campaignConfigDigest": digestOf(config), "decision": "ACCEPT", "experiments": xs,
+				"stages":    []any{map[string]any{"name": "snapshot", "status": "OK"}, map[string]any{"name": "cleanup", "status": "OK"}},
+				"selection": map[string]any{"mode": "all", "only": []string{}, "selected": 2, "filtered": 0}}
+			if tc.edit != nil {
+				tc.edit(m, xs)
 			}
-			continue
-		}
-		if e == nil || reason(e, "") != tc.reason {
-			t.Errorf("%s: err %v, want %s", tc.name, e, tc.reason)
-		}
+			o, err := ValidateCampaign(encode(m), exitPtr(tc.exit), config, frozen)
+			if tc.want == "" {
+				if reason(err, "") != "EVIDENCE_CORRUPT" {
+					t.Fatalf("expected EVIDENCE_CORRUPT, got %+v %v", o, err)
+				}
+			} else if err != nil || o.Decision != tc.want || len(o.Campaign) != 2 {
+				t.Fatalf("expected %s, got %+v %v", tc.want, o, err)
+			}
+		})
 	}
 }

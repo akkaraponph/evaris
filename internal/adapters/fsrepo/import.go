@@ -58,6 +58,7 @@ func parseImport(b []byte) (q domain.ImportRequest, err error) {
 		FinalSource       *domain.FinalSource `json:"finalSource,omitempty"`
 		DeliveredRevision *string             `json:"deliveredRevision,omitempty"`
 		Transcripts       []string            `json:"transcripts"`
+		ClaudeTranscript  string              `json:"claudeTranscript,omitempty"`
 		Diff              json.RawMessage     `json:"diff"`
 		Observed          json.RawMessage     `json:"observed"`
 		Limitations       []string            `json:"limitations"`
@@ -261,6 +262,17 @@ func (r Repository) Import(ctx context.Context, store, requestPath string) (out 
 	if err != nil {
 		return out, err
 	}
+	var claudePath string
+	if q.ClaudeTranscript != "" {
+		if q.Origin != "external-agent" {
+			return out, fail("INVALID_CONFIG", "claudeTranscript requires external-agent origin")
+		}
+		claudePath, err = resolve(q.ClaudeTranscript)
+		if err != nil {
+			return out, err
+		}
+		q.Transcripts = append([]string{q.ClaudeTranscript}, q.Transcripts...)
+	}
 	for i, path := range q.Transcripts {
 		src, e := resolve(path)
 		if e != nil {
@@ -270,7 +282,21 @@ func (r Repository) Import(ctx context.Context, store, requestPath string) (out 
 		if e != nil {
 			return out, e
 		}
-		ref, e := put("transcripts/"+stringID(i)+".txt", data)
+		if claudePath != "" && i > 0 && src == claudePath {
+			continue
+		}
+		if claudePath != "" && i == 0 {
+			workspace := filepath.Join(prep.TasksRoot, filepath.FromSlash(task.Workspace))
+			instructions, e := transcriptInstructions(p.ConfigDir, prep, q.CaseID)
+			if e != nil {
+				return out, e
+			}
+			if e := observeClaude(data, workspace, instructions, &out.Observed); e != nil {
+				return out, e
+			}
+			out.Limitations = append(out.Limitations, "Claude Code metadata was read from the retained stream. Instruction evidence records confirmed complete reads from Read and Bash results. The stream cannot rule out unobserved instruction loading.")
+		}
+		ref, e := put("transcripts/"+stringID(len(out.Transcripts))+".txt", data)
 		if e != nil {
 			return out, e
 		}

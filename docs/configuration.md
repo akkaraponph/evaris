@@ -103,7 +103,9 @@ Each case lists `allowedChanges`: the paths the agent may add, change or
 delete. Every entry is a pattern, so a job that creates many files does not
 have to list each one:
 
-- a plain path such as `result.txt` matches only that path;
+- a plain path such as `result.txt` matches only that path, and any entry
+  matches the identical path, so a literal route such as
+  `app/products/[id]/page.tsx` still authorizes itself;
 - `*`, `?` and `[...]` match within one path segment, as in Go's `path.Match`
   (`src/*.ts` matches `src/a.ts`, not `src/x/a.ts`);
 - a whole `**` segment matches zero or more segments (`app/**` matches
@@ -113,12 +115,30 @@ The optional `protectedPaths` uses the same syntax. A change there always fails
 source authorization, even when `allowedChanges` matches it, which turns
 `allowedChanges: ["**"]` into a deny-list. Generated files (`TASK.txt` and the
 frozen instructions) stay protected whatever the patterns say. When a case has
-`verification`, no `allowedChanges` pattern may match `invaris.json`. Each list
-holds at most 256 entries; a malformed pattern is `PATH_UNSAFE`.
+`verification`, an `allowedChanges` pattern that matches `invaris.json` (such
+as `**`) needs `invaris.json` in `protectedPaths` too, because Evaris writes the
+harness there. Each list holds at most 256 entries. A malformed pattern or a
+missing protection is `PATH_UNSAFE`, and the error names the case, the field
+and the pattern.
+
+When source authorization fails, its message points to
+`evidence/source-authorization.json` in the evaluation, which lists each
+unauthorized path with its `change` (`added`, `removed`, `modified` or `mode`)
+and the `rule` it broke: `not-allowed` (no `allowedChanges` pattern matches),
+`protected` (a `protectedPaths` pattern matches) or `generated` (an Evaris
+generated file changed). At most 500 paths are listed; `omitted` counts the
+rest.
 
 ```json
 "allowedChanges": ["app/**", "package.json"],
 "protectedPaths": ["**/.env", "app/auth/**"]
+```
+
+With verification, the deny-list form protects the harness name as well:
+
+```json
+"allowedChanges": ["**"],
+"protectedPaths": ["LICENSE", "invaris.json"]
 ```
 
 ## Limits

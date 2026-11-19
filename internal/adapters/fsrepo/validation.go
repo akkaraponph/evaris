@@ -166,6 +166,12 @@ func validateEvaluation(v domain.Evaluation, f application.FrozenRun) error {
 		if x.Required != f.Case.Case.Verification.Required || !domain.VerificationStatuses[x.Status] || x.Status == "NOT_CONFIGURED" || x.Evidence == nil || x.Findings == nil {
 			return fail("EVIDENCE_CORRUPT", "verification")
 		}
+		if x.InputsDigest != nil && *x.InputsDigest != f.Case.VerificationInputsDigest() {
+			return fail("EVIDENCE_CORRUPT", "verification inputs")
+		}
+		if len(x.Campaign) != 0 && !f.Case.Case.Verification.Campaign() {
+			return fail("EVIDENCE_CORRUPT", "verification campaign")
+		}
 		for _, ref := range x.Evidence {
 			if !domain.Relative(ref.Path) || !strings.HasPrefix(ref.Path, "evidence/verification/") || !digestPattern.MatchString(string(ref.SHA256)) || ref.Bytes < 0 {
 				return fail("EVIDENCE_CORRUPT", "verification evidence")

@@ -16,8 +16,19 @@ evaris compare --left /abs/old-evidence --right /abs/new-evidence --mode revisio
 | `arms` | baseline | specialist | the same store (`--left` equals `--right`) |
 | `revisions` | earlier revision, same case and arm | later revision | two stores |
 
-Each store must contain exactly one committed preparation. Several preparations
-are separate trials; Evaris refuses to choose a pairing among them. For each run
+With no preparation flags, each store must contain exactly one committed
+preparation. To compare a trial in a store with several preparations, pass
+`--left-preparation ID --right-preparation ID`. In arms mode both flags must
+name the same preparation in the same store. In revisions mode use the IDs
+of the two preparations chosen by your trial protocol. Run the comparison
+once per explicitly paired trial.
+
+```sh
+evaris compare --left /abs/evidence --right /abs/evidence --mode arms \
+  --left-preparation PREPARATION_ID --right-preparation PREPARATION_ID
+```
+
+For each run
 the newest evaluation is used. Older evaluations of the same run are re-gradings
 of the same output, not independent trials, and are listed as limitations.
 
@@ -32,8 +43,12 @@ A pair is comparable only when all of these hold. Every failure is listed in
 - Same experiment ID, case, task, fixture and oracle digests, source revision
   and origin.
 - Same criteria, grader versions and required flags.
-- Same verification configuration. In revisions mode, both harness digests must
-  be known and equal.
+- Same verification configuration. When both verifiers produced a native
+  decision, the executable SHA-256 and frozen input digest must be known and
+  equal. The input digest includes the action, time limit, harness and all
+  campaign files. It also records configured dependency locations. The contents
+  of linked dependencies are outside this digest. Historical evaluations
+  without the new identity can be re-graded from their retained runs.
 - Observed and equal host, model, permissions and budget; model settings equal
   after JSON key normalization; tools equal as a set. Null means not observed,
   which blocks comparison. Evaris never estimates a missing value.
