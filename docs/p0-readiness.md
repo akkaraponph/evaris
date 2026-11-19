@@ -41,7 +41,7 @@ container ran as root, which can hide permission-dependent failures.
 
 The [Go checks workflow](https://github.com/refactorroom/evaris/actions/workflows/ci.yml)
 runs build, vet, race tests, offline acceptance, and pinned real-Invaris
-integration on Linux and macOS. Verify the run's commit SHA against the release
+integration on Linux. Verify the run's commit SHA against the release
 tag; local passes and runs from older revisions do not satisfy the release gate.
 
 The initial release candidate `a794cb7` passed Linux verification and real-Invaris

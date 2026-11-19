@@ -9,10 +9,10 @@
 | Windows | Not supported; the process adapter uses Unix process groups and does not build for Windows |
 | Invaris (optional) | `ee92f3c`, v0.3.0, v0.4.0 and 0.5.x; see [compatibility](invaris.md#tested-compatibility) |
 
-CI builds `main` only (pull requests to `main` and pushes to `main`). It runs
-build, vet, race tests and the offline acceptance suite on
-`ubuntu-latest` and `macos-latest`, plus the real-Invaris job on both. Platforms
-not exercised by CI are cross-compiled only.
+CI runs source checks on Linux for pull requests to `main` and pushes to
+`main`. It runs build, vet, race tests, offline acceptance, and integration
+against the pinned Invaris v0.5.0 release. Maintainers can verify other
+supported Invaris versions and platform builds locally.
 
 ## Record compatibility
 
@@ -113,23 +113,21 @@ sandboxed; and only the Invaris builds in the [compatibility table](invaris.md#t
 
 ## npm package release
 
-The package `evaris-cli` bundles the four native release
-binaries and requires Node.js 18 or newer. The npm name `evaris` is owned by a
-different project. A maintainer must own the npm package name and configure trusted
-publishing for `refactorroom/evaris` and workflow `npm-release.yml`, permitting
-`npm publish`. The GitHub-hosted publishing job requires `id-token: write` and
-uses Node 24 with npm 11.5.1 or newer. Package versions are immutable.
+The package `evaris-cli` bundles the same four release binaries and requires
+Node.js 18 or newer. Build it from the tagged checkout after following the
+reproducible release build above:
 
-After the existing release checks pass on the exact tagged commit, manually run
-the **Publish npm package** workflow on the release tag. It builds the binaries,
-verifies their checksums and the native Linux version, tests the installed
-tarball, and publishes using OIDC. Before dispatch, review the exact workflow,
-CI results, and supported-platform testing. Run `node --test
-npm/evaris/test/*.test.js` locally. To assemble an already built set of release
-binaries and `dist/SHA256SUMS`, run `node scripts/package-npm.js vX.Y.Z dist`.
-The tarball is written to `dist/`; no npm publish occurs during assembly.
+```sh
+VERSION=v0.5.0
+node --test npm/evaris/test/*.test.js
+node scripts/package-npm.js "$VERSION" dist
+NPM_TEST_DIR=$(mktemp -d)
+npm install --global --prefix "$NPM_TEST_DIR" "./dist/evaris-cli-${VERSION#v}.tgz"
+"$NPM_TEST_DIR/bin/evaris" --version
+"$NPM_TEST_DIR/bin/evaris" validate --experiment testdata/valid/experiment.json
+```
 
-After publishing, verify `npx evaris-cli@latest --version` and a
-global install in clean environments. For recovery, install an earlier pinned
-npm version, retain evidence, and consult the record compatibility notes above.
-Do not overwrite published package versions.
+From an authenticated maintainer session, publish the tested tarball with
+`npm publish "./dist/evaris-cli-${VERSION#v}.tgz" --access public`.
+Verify the published version with `npx --yes "evaris-cli@${VERSION#v}" --version`.
+For recovery, install an earlier pinned npm version and retain evidence.
