@@ -7,6 +7,8 @@ A standalone, open-source Agent & Skill Evaluation Framework written in Go.
 Evaris aims to evaluate engineering outcomes through reproducible experiments,
 deterministic checks, independent review, and transparent evidence.
 
+[Documentation and quick start](https://refactorroom.github.io/evaris/)
+
 ## Status
 
 Version 0.4.0 is the current release. It adds single-arm acceptance mode,
@@ -33,9 +35,8 @@ supported; Windows is not. See [releases and support](docs/release.md),
 
 ## npm distribution
 
-The npm package is prepared for publication as `evaris-cli` from
-[refactorroom/evaris](https://github.com/refactorroom/evaris). Once published,
-Node.js 18 or newer can run the latest release with:
+The published [`evaris-cli` npm package](https://www.npmjs.com/package/evaris-cli)
+requires Node.js 18 or newer. Check the version or install it globally:
 
 ```sh
 npx evaris-cli@latest --version
@@ -63,9 +64,9 @@ go test -race ./...
 go vet ./...
 ```
 
-The six commands are `validate`, `prepare`, `import`, `evaluate`, `report`, and
-`compare`. `evaluate --store DIR --run ID` publishes a fresh immutable evaluation;
-add `--allow-commands` only for trusted command graders, and `--invaris PATH` for
+Start with `init`, `validate`, `prepare`, and `import`.
+`evaluate --store DIR --run ID` publishes a fresh immutable evaluation.
+Use `--allow-commands` only for trusted command graders and `--invaris PATH` for
 cases that configure Invaris verification. `report --store DIR` creates JSON and
 Markdown files under the printed report ID. `compare --left DIR --right DIR
 --mode arms|revisions` records whether conditions matched and, only then, the

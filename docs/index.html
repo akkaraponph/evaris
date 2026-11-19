@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Prepare separate task directories, import externally produced results, and grade them against reviewer-defined criteria. Compare runs under matched conditions.">
+  <meta name="theme-color" content="#f8f7fc">
+  <title>Evaris | Evaluate agent work with evidence.</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="pages.css">
+  <script src="copy.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="./"><img src="assets/brand.svg" width="34" height="34" alt="">Evaris</a>
+      <nav aria-label="Main navigation">
+        <a href="#quick-start">Quick start</a>
+        <a href="#workflows">Workflows</a>
+        <a href="#reference">Reference</a>
+      </nav>
+      <a class="button" href="https://github.com/refactorroom/evaris">GitHub <span aria-hidden="true">&nbsp;↗</span></a>
+    </div>
+  </header>
+  <main id="main">
+    <section class="hero wrap" aria-labelledby="title">
+      <div>
+        <h1 id="title">Evaluate agent work with evidence.</h1>
+        <p class="intro">Prepare separate task directories, import externally produced results, and grade them against reviewer-defined criteria. Compare runs under matched conditions.</p>
+        <div class="actions">
+          <a class="button primary" href="#quick-start">Get started</a>
+          <a class="button" href="https://github.com/refactorroom/evaris/tree/dev/examples/offline">Browse the example</a>
+        </div>
+      </div>
+      <figure class="terminal">
+        <figcaption>Evaris example output</figcaption>
+        <pre><code><span class="key">$</span> go run ./examples/offline
+
+good.txt: ordinary tests PASS,
+          independent assessment <span class="key">PASS</span>
+
+bad.txt:  ordinary tests PASS,
+          independent assessment <span class="key">FAIL</span></code></pre>
+        <p class="support">Offline grader controls. Both ordinary suites pass.</p>
+      </figure>
+    </section>
+    <section class="quick-start section" id="quick-start" aria-labelledby="start-title">
+      <div class="wrap">
+        <div class="section-heading"><h2 id="start-title">Quick start</h2></div>
+        <div class="quick-grid">
+          <article class="quick-card" id="install">
+            <h3>Install the CLI</h3>
+            <p>Use npm with Node.js 18+ on Linux or macOS, or download an archive from GitHub.</p>
+            <div class="snippet">
+            <div class="snippet-head"><span>Check the npm release</span><button class="copy-button" type="button" aria-label="Copy check the npm release commands" hidden>Copy</button></div>
+            <pre><code>npx --yes evaris-cli@latest --version</code></pre>
+          </div>
+            <p><a class="related" href="https://github.com/refactorroom/evaris#npm-distribution">Install for a project or globally</a> · <a href="https://github.com/refactorroom/evaris/releases">Archives</a></p>
+          </article>
+          <article class="quick-card">
+            <h3>Run the offline demo</h3>
+            <p>Use Go 1.27.4+ on your <code>PATH</code>. The demo grades authored controls and prints the report path.</p>
+            <div class="snippet">
+            <div class="snippet-head"><span>Run the offline demo</span><button class="copy-button" type="button" aria-label="Copy run the offline demo commands" hidden>Copy</button></div>
+            <pre><code>git clone https://github.com/refactorroom/evaris.git
+cd evaris
+go run ./examples/offline</code></pre>
+          </div>
+            <p>The demo runs locally without a model API.</p>
+          </article>
+        </div>
+        <span id="copy-status" class="sr-only" role="status"></span>
+      </div>
+    </section>
+    <section class="section wrap" id="workflows" aria-labelledby="workflows-title">
+      <div class="section-heading"><h2 id="workflows-title">Choose a workflow</h2></div>
+      <div class="workflow-list">
+        <a href="https://github.com/refactorroom/evaris/blob/dev/docs/workflow.md">
+          <span class="workflow-name">Prepare and import</span>
+          <span class="workflow-description">Freeze the task and reviewer criteria, prepare each workspace, and import the external agent’s result.</span>
+          <span class="workflow-open" aria-hidden="true">Read guide ↗</span>
+        </a>
+        <a href="https://github.com/refactorroom/evaris/blob/dev/docs/configuration.md#acceptance-mode">
+          <span class="workflow-name">Grade one delivery</span>
+          <span class="workflow-description">Use acceptance mode for a single candidate. Read criterion outcomes in the JSON or Markdown report.</span>
+          <span class="workflow-open" aria-hidden="true">Read guide ↗</span>
+        </a>
+        <a href="https://github.com/refactorroom/evaris/blob/dev/docs/comparison.md">
+          <span class="workflow-name">Compare matched runs</span>
+          <span class="workflow-description">Compare baseline and specialist arms, or the same arm across revisions. Evaris reports mismatched conditions.</span>
+          <span class="workflow-open" aria-hidden="true">Read guide ↗</span>
+        </a>
+        <a href="https://github.com/refactorroom/evaris/blob/dev/docs/pilot.md">
+          <span class="workflow-name">Run a real pilot</span>
+          <span class="workflow-description">Use fresh external sessions, capture host observations, and keep a separate workspace for each arm.</span>
+          <span class="workflow-open" aria-hidden="true">Read guide ↗</span>
+        </a>
+        <a href="https://github.com/refactorroom/evaris/blob/dev/docs/invaris.md">
+          <span class="workflow-name">Add Invaris verification</span>
+          <span class="workflow-description">Gate a delivery with a check or campaign while retaining a separate Evaris assessment.</span>
+          <span class="workflow-open" aria-hidden="true">Read guide ↗</span>
+        </a>
+      </div>
+    </section>
+    <section class="reference section" id="reference" aria-labelledby="reference-title">
+      <div class="wrap">
+        <div class="section-heading"><h2 id="reference-title">Reference</h2></div>
+        <div class="reference-grid">
+          <div class="resource">
+          <h3>Set up an evaluation</h3>
+          <ul>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/configuration.md">Experiment and reviewer configuration</a></li>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/workflow.md#import-from-a-git-repository">Import a Git revision</a></li>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/workflow.md#import-claude-code-stream-metadata">Claude Code transcript import</a></li>
+          </ul>
+        </div>
+        <div class="resource">
+          <h3>Review results</h3>
+          <ul>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/evidence.md">Evidence and reports</a></li>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/comparison.md">Comparability and exit codes</a></li>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/invaris.md#campaign-verification">Campaign verification results</a></li>
+          </ul>
+        </div>
+        <div class="resource">
+          <h3>Operate safely</h3>
+          <ul>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/security.md">Trust boundaries</a></li>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/release.md">Releases and platform support</a></li>
+            <li><a href="https://github.com/refactorroom/evaris/blob/dev/docs/p0-readiness.md">Verification status</a></li>
+          </ul>
+        </div>
+        </div>
+        <p class="note">Keep reviewer inputs private and run agents in separate task directories. Use <code>--allow-commands</code> only for trusted graders and verifiers. The Claude Code transcript importer and explicit trial pairing are documented on the development branch.</p>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div class="wrap footer-inner">
+      <strong>Evaris</strong>
+      <div class="footer-links">
+        <a href="https://github.com/refactorroom/evaris/releases">Releases</a>
+        <a href="https://github.com/refactorroom/evaris/blob/dev/CHANGELOG.md">Changelog</a>
+        <a href="https://github.com/refactorroom/evaris/blob/main/LICENSE">Apache-2.0 license</a>
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

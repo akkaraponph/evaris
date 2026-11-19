@@ -9,6 +9,7 @@ Find installation instructions and examples in the [Evaris README](https://githu
 ## Documentation
 
 - [Evaluation workflow](https://github.com/refactorroom/evaris/blob/dev/docs/workflow.md)
+- [Claude Code transcript import](https://github.com/refactorroom/evaris/blob/dev/docs/workflow.md#import-claude-code-stream-metadata)
 - [Configuration reference](https://github.com/refactorroom/evaris/blob/dev/docs/configuration.md)
 - [Evidence and reports](https://github.com/refactorroom/evaris/blob/dev/docs/evidence.md)
 - [Comparisons](https://github.com/refactorroom/evaris/blob/dev/docs/comparison.md)
