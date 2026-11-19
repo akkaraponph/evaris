@@ -77,8 +77,9 @@ func TestVerificationConfig(t *testing.T) {
 			t.Errorf("%s: accepted", name)
 		}
 	}
+	dependencies := canonicalTemp(t)
 	config, _ = verifiedFixture(t, func(c map[string]any) {
-		v(c)["dependencies"] = []any{map[string]any{"name": "node_modules", "source": "/tmp"}}
+		v(c)["dependencies"] = []any{map[string]any{"name": "node_modules", "source": dependencies}}
 	})
 	if _, e := (Repository{}).Load(context.Background(), config); e != nil {
 		t.Errorf("valid verification dependency rejected: %v", e)
