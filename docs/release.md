@@ -9,8 +9,8 @@
 | Windows | Not supported; the process adapter uses Unix process groups and does not build for Windows |
 | Invaris (optional) | `ee92f3c`, v0.3.0, v0.4.0 and 0.5.x; see [compatibility](invaris.md#tested-compatibility) |
 
-CI runs source checks on Linux for pull requests to `main` and pushes to
-`main`. It runs build, vet, race tests, offline acceptance, and integration
+CI runs source checks on Linux for pull requests to `dev` and `main` and
+pushes to `main`. It runs build, vet, race tests, offline acceptance, and integration
 against the pinned Invaris v0.5.0 release. Maintainers can verify other
 supported Invaris versions and platform builds locally.
 
@@ -77,7 +77,7 @@ built; they identify bytes and are not signatures.
 
 ## Release checklist
 
-1. Hosted CI is green on the exact release commit, including the `invaris` job.
+1. Promote `dev` to `main` through a pull request. Wait for `main` CI to pass on the merge commit, including the `invaris` job.
 2. `CHANGELOG.md` has a section for the version, dated on the tag day.
 3. README, CONTRIBUTING, SECURITY, AGENTS and this file match the commands.
 4. `git status --porcelain` is empty; no private evidence or build output is tracked.
