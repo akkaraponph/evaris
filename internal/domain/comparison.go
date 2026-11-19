@@ -199,10 +199,17 @@ func conditions(l, r Run, le, re Evaluation, mode string) []string {
 		out = append(out, "verification configuration changed")
 	case le.Verification != nil:
 		add(le.Verification.Required != re.Verification.Required, "verification requirement changed")
-		if mode == "revisions" {
-			a, b := le.Verification.ConfigDigest, re.Verification.ConfigDigest
-			add(a == nil || b == nil, "verification harness identity unknown")
-			add(a != nil && b != nil && *a != *b, "verification harness changed")
+		a, b := le.Verification, re.Verification
+		finished := func(v *Verification) bool {
+			return v.Status == "ACCEPT" || v.Status == "REJECT" || v.Status == "REFUSE"
+		}
+		if finished(a) && finished(b) {
+			add(a.ConfigDigest == nil || b.ConfigDigest == nil, "verification harness identity unknown")
+			add(a.ConfigDigest != nil && b.ConfigDigest != nil && *a.ConfigDigest != *b.ConfigDigest, "verification harness changed")
+			add(a.InputsDigest == nil || b.InputsDigest == nil, "verification inputs identity unknown")
+			add(a.InputsDigest != nil && b.InputsDigest != nil && *a.InputsDigest != *b.InputsDigest, "verification inputs changed")
+			add(a.Executable == nil || b.Executable == nil, "verification executable identity unknown")
+			add(a.Executable != nil && b.Executable != nil && a.Executable.SHA256 != b.Executable.SHA256, "verification executable changed")
 		}
 	}
 	lo, ro := l.Observed, r.Observed

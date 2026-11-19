@@ -29,6 +29,9 @@ const (
 	StepVerifyScratch    CommandStep = "verification scratch"
 	StepVerifyRun        CommandStep = "verification command"
 	StepVerifyEvidence   CommandStep = "verification evidence"
+
+	// StepSourceAuthorization is the built-in source-authorization criterion.
+	StepSourceAuthorization CommandStep = "source authorization"
 )
 
 // Limit kinds name which bound a LIMIT_EXCEEDED hit.
@@ -57,14 +60,15 @@ var messageHints = map[string]string{
 	string(StepVerifyEvidence) + "/UNSUPPORTED_SCHEMA":         "this Invaris version is not supported; see docs/invaris.md",
 	string(StepVerifyExecutable) + "/UNSUPPORTED_TOOL_VERSION": "this Invaris release is not supported; see docs/invaris.md",
 	string(StepVerifyEvidence) + "/EVIDENCE_CORRUPT":           "the invaris report does not match the frozen harness or the check profile",
+	string(StepSourceAuthorization) + "/ASSERTION_FAILED":      "a changed path is outside allowedChanges, protected or generated; see evidence/source-authorization.json",
 }
 
 var messageReasons = []Reason{"IO_ERROR", "LIMIT_EXCEEDED", "PATH_UNSAFE", "EVIDENCE_CORRUPT", "TIMEOUT", "TOOL_MISSING", "INVALID_CONFIG",
-	"CANCELED", "OUTPUT_MISSING", "UNSUPPORTED_SCHEMA", "UNSUPPORTED_TOOL_VERSION"}
+	"CANCELED", "OUTPUT_MISSING", "UNSUPPORTED_SCHEMA", "UNSUPPORTED_TOOL_VERSION", "ASSERTION_FAILED"}
 
 // catalogueSteps lists every step, for the message pattern.
 var catalogueSteps = []CommandStep{StepCopy, StepSnapshotBefore, StepSnapshotAfter, StepCleanup, StepCommand, StepDependencies,
-	StepVerifyHarness, StepVerifyExecutable, StepVerifyScratch, StepVerifyRun, StepVerifyEvidence}
+	StepVerifyHarness, StepVerifyExecutable, StepVerifyScratch, StepVerifyRun, StepVerifyEvidence, StepSourceAuthorization}
 
 // CommandMessage formats a catalogue message. exit is nil when the command
 // did not run to completion or the step precedes it; showExit says whether

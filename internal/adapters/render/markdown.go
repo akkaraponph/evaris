@@ -34,6 +34,15 @@ func Markdown(r domain.Report) ([]byte, error) {
 		for _, g := range c.Criteria {
 			fmt.Fprintf(&b, "| %s | %t | %s | %s | %s |\n", safe(g.ID), g.Required, safe(g.Status), safe(string(g.Reason)), safe(g.Message))
 		}
+		for _, g := range c.Criteria {
+			if len(g.Campaign) == 0 {
+				continue
+			}
+			b.WriteString("\n| Campaign experiment | Kind | Stability | Verdict |\n| --- | --- | --- | --- |\n")
+			for _, item := range g.Campaign {
+				fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", safe(item.ID), safe(item.Kind), safe(item.Stability), safe(item.Verdict))
+			}
+		}
 	}
 	if !any {
 		b.WriteString("\nNo evaluated cases.\n")

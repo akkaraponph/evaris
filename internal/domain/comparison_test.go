@@ -143,8 +143,8 @@ func TestRevisionRegression(t *testing.T) {
 	}
 	// Verification harness identity must be known and equal across revisions.
 	rr.OracleDigest = lr.OracleDigest
-	le.Verification = &Verification{Required: true, Status: "ACCEPT", ConfigDigest: ptr("sha256:h1")}
-	re.Verification = &Verification{Required: true, Status: "REJECT", ConfigDigest: ptr("sha256:h2")}
+	le.Verification = &Verification{Required: true, Status: "ACCEPT", ConfigDigest: ptr("sha256:h1"), InputsDigest: ptr(Digest("sha256:i")), Executable: &FileRef{SHA256: "sha256:x"}}
+	re.Verification = &Verification{Required: true, Status: "REJECT", ConfigDigest: ptr("sha256:h2"), InputsDigest: ptr(Digest("sha256:i")), Executable: &FileRef{SHA256: "sha256:x"}}
 	c, _ = Compare([]Evaluation{le}, []Evaluation{re}, []Run{lr, rr}, "revisions")
 	if c.Comparable || !hasReason(c, "verification harness changed") {
 		t.Fatalf("changed harness hidden: %+v", c.Reasons)
@@ -153,6 +153,12 @@ func TestRevisionRegression(t *testing.T) {
 	c, _ = Compare([]Evaluation{le}, []Evaluation{re}, []Run{lr, rr}, "revisions")
 	if !c.Comparable || pairOf(c, "verification") != "regressed" {
 		t.Fatalf("verification transition: %+v", c)
+	}
+	re.Verification.Executable.SHA256 = "sha256:y"
+	re.Verification.InputsDigest = ptr(Digest("sha256:changed-child"))
+	c, _ = Compare([]Evaluation{le}, []Evaluation{re}, []Run{lr, rr}, "revisions")
+	if c.Comparable || c.Regressed() || !hasReason(c, "verification executable changed") || !hasReason(c, "verification inputs changed") {
+		t.Fatalf("changed verification identities: %+v", c)
 	}
 }
 

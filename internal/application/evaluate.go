@@ -5,9 +5,11 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/akkaraponph/evaris/internal/domain"
+	"slices"
 	"strings"
 	"time"
 )
@@ -43,7 +45,9 @@ func (s Service) Evaluate(ctx context.Context, store, id string, allow bool) (ou
 		out.Graders = append(out.Graders, r)
 		blobs = append(blobs, b...)
 	}
-	out.Graders = append(out.Graders, authorization(f))
+	ar, ab := authorization(f)
+	out.Graders = append(out.Graders, ar)
+	blobs = append(blobs, ab...)
 	if f.Case.Case.Verification != nil {
 		v, b := s.verify(ctx, f)
 		out.Verification = &v
@@ -125,6 +129,8 @@ func (s Service) verify(ctx context.Context, f FrozenRun) (v domain.Verification
 	}()
 	v, b = s.Verifier.Verify(ctx, f)
 	v.Required = required
+	inputs := f.Case.VerificationInputsDigest()
+	v.InputsDigest = &inputs
 	if v.Evidence == nil {
 		v.Evidence = []domain.FileRef{}
 	}
@@ -163,7 +169,32 @@ func evidenceMatches(refs []domain.FileRef, blobs []Blob, prefix string) bool {
 	}
 	return len(refs) == len(blobs)
 }
-func authorization(f FrozenRun) domain.GraderResult {
+
+// AuthorizationEvidencePath is the private evidence file a failed
+// source-authorization criterion writes. It names each unauthorized path, how
+// it changed and which rule it broke; the catalogue message cannot carry paths.
+const AuthorizationEvidencePath = "evidence/source-authorization.json"
+
+// maxAuthorizationViolations bounds the listed paths; Omitted counts the rest.
+const maxAuthorizationViolations = 500
+
+// AuthorizationViolation is one unauthorized path. Change is added, removed,
+// modified or mode; Rule is not-allowed (no allowedChanges pattern matches),
+// protected (a protectedPaths pattern matches) or generated (an Evaris
+// generated file such as TASK.txt changed).
+type AuthorizationViolation struct {
+	Path   string `json:"path"`
+	Change string `json:"change"`
+	Rule   string `json:"rule"`
+}
+
+// AuthorizationEvidence is the content of AuthorizationEvidencePath.
+type AuthorizationEvidence struct {
+	Violations []AuthorizationViolation `json:"violations"`
+	Omitted    int                      `json:"omitted"`
+}
+
+func authorization(f FrozenRun) (domain.GraderResult, []Blob) {
 	r := domain.GraderResult{CriterionID: "source-authorization", Required: true, Status: "PASS", Evidence: []domain.FileRef{}, GraderVersion: "builtin/1"}
 	initial := map[string]domain.FileRef{}
 	protected := map[string]bool{}
@@ -188,19 +219,55 @@ func authorization(f FrozenRun) domain.GraderResult {
 	for p := range actual {
 		keys[p] = true
 	}
+	var violations []AuthorizationViolation
 	for p := range keys {
 		a, ok := initial[p]
 		b, present := actual[p]
 		if ok != present || a.SHA256 != b.SHA256 || a.Executable != b.Executable {
 			// A change passes only when an allowedChanges pattern matches it,
 			// no protectedPaths pattern does, and it is not a generated file.
-			if !domain.MatchAny(f.Case.Case.AllowedChanges, p) || domain.MatchAny(f.Case.Case.ProtectedPaths, p) || protected[p] {
-				r.Status = "FAIL"
-				r.Reason = "ASSERTION_FAILED"
+			rule := ""
+			switch {
+			case protected[p]:
+				rule = "generated"
+			case domain.MatchAny(f.Case.Case.ProtectedPaths, p):
+				rule = "protected"
+			case !domain.MatchAny(f.Case.Case.AllowedChanges, p):
+				rule = "not-allowed"
 			}
+			if rule == "" {
+				continue
+			}
+			change := "modified"
+			switch {
+			case !ok:
+				change = "added"
+			case !present:
+				change = "removed"
+			case a.SHA256 == b.SHA256:
+				change = "mode"
+			}
+			violations = append(violations, AuthorizationViolation{Path: p, Change: change, Rule: rule})
 		}
 	}
-	return r
+	if len(violations) == 0 {
+		return r, nil
+	}
+	r.Status = "FAIL"
+	r.Reason = "ASSERTION_FAILED"
+	r.Message = domain.CommandMessage(domain.StepSourceAuthorization, false, nil, "ASSERTION_FAILED", "")
+	slices.SortFunc(violations, func(x, y AuthorizationViolation) int { return strings.Compare(x.Path, y.Path) })
+	ev := AuthorizationEvidence{Violations: violations}
+	if len(violations) > maxAuthorizationViolations {
+		ev.Violations, ev.Omitted = violations[:maxAuthorizationViolations], len(violations)-maxAuthorizationViolations
+	}
+	data, err := json.MarshalIndent(ev, "", "  ")
+	if err != nil {
+		return r, nil
+	}
+	data = append(data, '\n')
+	r.Evidence = []domain.FileRef{{Path: AuthorizationEvidencePath, SHA256: domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(data))), Bytes: int64(len(data))}}
+	return r, []Blob{{Path: AuthorizationEvidencePath, Data: data}}
 }
 
 // AsFailure gives every operation error a stable reason code for diagnostics.

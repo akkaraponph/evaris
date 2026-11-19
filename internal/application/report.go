@@ -68,7 +68,7 @@ func (s Service) Report(ctx context.Context, store string) (out domain.Report, e
 						}
 					}
 					if x := v.Verification; x != nil {
-						row.Criteria = append(row.Criteria, domain.CriterionSummary{ID: "verification", Required: x.Required, Status: x.Status, Reason: x.Reason, Message: x.Message})
+						row.Criteria = append(row.Criteria, domain.CriterionSummary{ID: "verification", Required: x.Required, Status: x.Status, Reason: x.Reason, Message: x.Message, Campaign: x.Campaign})
 						switch x.Status {
 						case "REJECT":
 							row.FailedCriteria = append(row.FailedCriteria, "verification")

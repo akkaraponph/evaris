@@ -72,6 +72,13 @@ func (s Service) Show(ctx context.Context, store, evaluationID, criterion string
 	}
 	if x := v.Verification; x != nil && (criterion == "" || criterion == "verification") {
 		header("verification", x.Required, x.Status, x.Reason, x.Message)
+		for _, item := range x.Campaign {
+			verdict := item.Verdict
+			if verdict == "" {
+				verdict = item.Stability
+			}
+			fmt.Fprintf(&b, "  experiment %q (%s): %s\n", item.ID, item.Kind, verdict)
+		}
 		for _, ref := range x.Evidence {
 			fmt.Fprintf(&b, "  evidence: %s (%s, %d bytes)\n", ref.Path, ref.SHA256, ref.Bytes)
 			if strings.HasSuffix(ref.Path, "/stdout.json") || strings.HasSuffix(ref.Path, "/stderr.txt") {

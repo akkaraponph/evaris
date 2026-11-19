@@ -8,13 +8,14 @@ Find installation instructions and examples in the [Evaris README](https://githu
 
 ## Documentation
 
-- [Evaluation workflow](https://github.com/refactorroom/evaris/blob/main/docs/workflow.md)
-- [Configuration reference](https://github.com/refactorroom/evaris/blob/main/docs/configuration.md)
-- [Evidence and reports](https://github.com/refactorroom/evaris/blob/main/docs/evidence.md)
-- [Comparisons](https://github.com/refactorroom/evaris/blob/main/docs/comparison.md)
-- [Invaris integration](https://github.com/refactorroom/evaris/blob/main/docs/invaris.md)
-- [Pilot runbook](https://github.com/refactorroom/evaris/blob/main/docs/pilot.md)
-- [Security](https://github.com/refactorroom/evaris/blob/main/docs/security.md)
-- [Releases and support](https://github.com/refactorroom/evaris/blob/main/docs/release.md)
+- [Evaluation workflow](https://github.com/refactorroom/evaris/blob/dev/docs/workflow.md)
+- [Claude Code transcript import](https://github.com/refactorroom/evaris/blob/dev/docs/workflow.md#import-claude-code-stream-metadata)
+- [Configuration reference](https://github.com/refactorroom/evaris/blob/dev/docs/configuration.md)
+- [Evidence and reports](https://github.com/refactorroom/evaris/blob/dev/docs/evidence.md)
+- [Comparisons](https://github.com/refactorroom/evaris/blob/dev/docs/comparison.md)
+- [Invaris integration](https://github.com/refactorroom/evaris/blob/dev/docs/invaris.md)
+- [Pilot runbook](https://github.com/refactorroom/evaris/blob/dev/docs/pilot.md)
+- [Security](https://github.com/refactorroom/evaris/blob/dev/docs/security.md)
+- [Releases and support](https://github.com/refactorroom/evaris/blob/dev/docs/release.md)
 
 [GitHub repository](https://github.com/refactorroom/evaris) · [Releases](https://github.com/refactorroom/evaris/releases)

@@ -63,7 +63,12 @@ func (c Client) Verify(ctx context.Context, f application.FrozenRun) (domain.Ver
 	campaign := cfg.Campaign()
 	var h Harness
 	var e error
-	if !campaign {
+	if campaign {
+		names, _ := campaignInputs(f.Case.HarnessFiles)
+		if _, e := domain.CampaignEntries(f.Case.Harness, names); e != nil {
+			return fail(domain.StepVerifyHarness, reason(e, "INVALID_CONFIG"))
+		}
+	} else {
 		if h, e = ParseHarness(f.Case.Harness); e != nil {
 			return fail(domain.StepVerifyHarness, reason(e, "INVALID_CONFIG"))
 		}
@@ -100,6 +105,22 @@ func (c Client) Verify(ctx context.Context, f application.FrozenRun) (domain.Ver
 			return fail(domain.StepVerifyScratch, r)
 		}
 	}
+	// Dependencies are linked at the scratch root, where an Invaris harness's
+	// workspace block expects them. The imported tree must not already hold
+	// the name, and the links stay out of the scratch manifests.
+	var exclude []string
+	for _, d := range cfg.Dependencies {
+		if info, e := os.Stat(d.Source); e != nil || !info.IsDir() {
+			return fail(domain.StepDependencies, "TOOL_MISSING")
+		}
+		if _, e := os.Lstat(filepath.Join(scratch, d.Name)); e == nil {
+			return fail(domain.StepVerifyScratch, "PATH_UNSAFE")
+		}
+		if e := os.Symlink(d.Source, filepath.Join(scratch, d.Name)); e != nil {
+			return fail(domain.StepDependencies, "IO_ERROR")
+		}
+		exclude = append(exclude, d.Name)
+	}
 	env := c.Env
 	if env == nil {
 		env = []string{"PATH"}
@@ -115,7 +136,7 @@ func (c Client) Verify(ctx context.Context, f application.FrozenRun) (domain.Ver
 		action = domain.VerifyCampaign
 	}
 	cmd := domain.Command{Program: c.Executable, Args: []string{action, harnessPath}, EnvAllowlist: env, TimeoutSeconds: cfg.TimeoutSeconds}
-	limit := fsrepo.SnapshotOptions{MaxEntries: f.MaxEntries}
+	limit := fsrepo.SnapshotOptions{MaxEntries: f.MaxEntries, Exclude: exclude}
 	before, be := fsrepo.SnapshotWith(ctx, scratch, limit)
 	res := process.RunLimited(ctx, scratch, cmd, maxEvidence, 64<<10)
 	after, ae := fsrepo.SnapshotWith(context.WithoutCancel(ctx), scratch, limit)
@@ -141,7 +162,7 @@ func (c Client) Verify(ctx context.Context, f application.FrozenRun) (domain.Ver
 		digest := domain.Digest(fmt.Sprintf("sha256:%x", sha256.Sum256(f.Case.Harness)))
 		var o Outcome
 		if campaign {
-			o, e = ValidateCampaign(res.Stdout, res.ExitCode, digest, f.Case.HarnessFiles)
+			o, e = ValidateCampaign(res.Stdout, res.ExitCode, f.Case.Harness, f.Case.HarnessFiles)
 		} else {
 			o, e = ValidateEvidence(res.Stdout, res.ExitCode, h, digest, scratch)
 		}
@@ -151,6 +172,7 @@ func (c Client) Verify(ctx context.Context, f application.FrozenRun) (domain.Ver
 			break
 		}
 		v.Status = o.Decision
+		v.Campaign = o.Campaign
 		v.SchemaVersion, v.RunID, v.ConfigDigest = &o.SchemaVersion, &o.RunID, &o.ConfigDigest
 		v.Findings = o.Findings
 		v.Reason = map[string]domain.Reason{"ACCEPT": "", "REJECT": "ASSERTION_FAILED", "REFUSE": "VERIFIER_REFUSED"}[o.Decision]

@@ -20,7 +20,7 @@ experiment file, so use one copy of the experiment directory per independent tri
 for example `$PILOT_ROOT/trial-1/` holding `experiment.json`, its fixtures, tasks
 and oracles, with the store at `trial-1/evidence` and task workspaces at
 `trial-1/ws`. The tasks root must be a new directory, not an existing one such as
-`tasks/`. `compare` requires each store to hold exactly one committed preparation.
+`tasks/`. For a store with multiple preparations, pass both preparation IDs to `compare` using the [explicit pairing flags](comparison.md).
 Below, `STORE` means `$PILOT_ROOT/trial-1/evidence`.
 
 ## 1. Freeze before running
@@ -111,6 +111,12 @@ you did not observe and `[]` for an observed empty list. Take
 ```sh
 .panda-suite/build/evaris import --store "$STORE" --record "$PILOT_ROOT/imports/trial-1-baseline.json"
 ```
+
+For Claude Code, set the import request's
+[`claudeTranscript`](workflow.md#import-claude-code-stream-metadata) field
+to extract observed host details and confirm instruction reads from the stream.
+Keep the launch settings and record how the baseline supplied an observed
+empty instruction list.
 
 The output's `id` is the run ID (also the directory name under `STORE/runs/`; its `run.json` names the case and arm). Duplicate imports for one preparation, case and
 arm are refused (exit 2).

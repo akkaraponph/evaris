@@ -45,6 +45,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 	f := flag.NewFlagSet(name, flag.ContinueOnError)
 	f.SetOutput(stderr)
 	var experiment, tasks, store, record, run, invarisPath, left, right, mode, evaluation, criterion string
+	var leftPreparation, rightPreparation string
 	var allow bool
 	if name == "show" {
 		f.StringVar(&store, "store", "", "absolute evidence store (default .evaris/evidence)")
@@ -61,6 +62,8 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 		f.StringVar(&left, "left", "", "absolute left evidence store (receives the comparison)")
 		f.StringVar(&right, "right", "", "absolute right evidence store")
 		f.StringVar(&mode, "mode", "", "arms or revisions")
+		f.StringVar(&leftPreparation, "left-preparation", "", "explicit left preparation ID")
+		f.StringVar(&rightPreparation, "right-preparation", "", "explicit right preparation ID")
 	} else if name == "import" {
 		f.StringVar(&store, "store", "", "absolute evidence store (default .evaris/evidence)")
 		f.StringVar(&record, "record", "", "import request JSON")
@@ -149,7 +152,11 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer, runtime R
 	case "import":
 		out, e = runtime.Service.Import(ctx, store, record)
 	case "compare":
-		out, e = runtime.Service.Compare(ctx, left, right, mode)
+		if seen["left-preparation"] && leftPreparation == "" || seen["right-preparation"] && rightPreparation == "" {
+			fmt.Fprintln(stderr, "INVALID_CONFIG: preparation IDs must be nonempty")
+			return 2
+		}
+		out, e = runtime.Service.ComparePreparations(ctx, left, right, mode, leftPreparation, rightPreparation)
 	case "show":
 		// show prints text, not JSON, and exits 0 when it could read the evaluation.
 		text, err := runtime.Service.Show(ctx, store, evaluation, criterion)

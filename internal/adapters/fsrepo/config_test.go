@@ -254,7 +254,7 @@ func TestDependencyValidation(t *testing.T) {
 func TestCampaignVerificationFrozen(t *testing.T) {
 	config, tasks := fixture(t)
 	dir := filepath.Dir(config)
-	os.WriteFile(filepath.Join(dir, "reviewer", "campaign.json"), []byte(`{"version":"invaris.campaign/v1alpha1","name":"c"}`), 0o600)
+	os.WriteFile(filepath.Join(dir, "reviewer", "campaign.json"), []byte(`{"version":"invaris.campaign/v1alpha1","name":"c","experiments":[{"id":"m","kind":"mutation","harness":"mutate.json","experimentId":"m","repeat":1}]}`), 0o600)
 	os.WriteFile(filepath.Join(dir, "reviewer", "mutate.json"), []byte(`{"version":"invaris.dev/v1alpha3"}`), 0o600)
 	b, _ := os.ReadFile(config)
 	var exp map[string]any

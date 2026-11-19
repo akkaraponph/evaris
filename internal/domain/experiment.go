@@ -102,6 +102,11 @@ type VerificationConfig struct {
 	// experiment file and inside the campaign file's directory. Only campaign
 	// verification accepts them; they are frozen like the campaign file.
 	Files []string `json:"files,omitempty"`
+	// Dependencies are directories, such as node_modules, linked into the
+	// verification scratch root before Invaris runs, so harnesses that declare
+	// a workspace dependency find it. They are not copied, hashed or frozen,
+	// and they are left out of the scratch manifests.
+	Dependencies []Dependency `json:"dependencies,omitempty"`
 }
 
 // Verification actions.
@@ -239,17 +244,24 @@ func ValidateExperiment(e Experiment) error {
 		if len(c.AllowedChanges) > maxPatterns || len(c.ProtectedPaths) > maxPatterns {
 			return bad("INVALID_CONFIG")
 		}
-		for _, p := range c.AllowedChanges {
-			if !ValidPattern(p) {
-				return bad("PATH_UNSAFE")
-			}
-			if c.Verification != nil && MatchPattern(p, HarnessName) {
-				return bad("PATH_UNSAFE")
-			}
+		at := func(field, p, problem string) error {
+			return &Failure{Code: "PATH_UNSAFE", Path: fmt.Sprintf("case %s %s %q %s", c.ID, field, p, problem)}
 		}
 		for _, p := range c.ProtectedPaths {
 			if !ValidPattern(p) {
-				return bad("PATH_UNSAFE")
+				return at("protectedPaths", p, "is not a valid pattern")
+			}
+		}
+		for _, p := range c.AllowedChanges {
+			if !ValidPattern(p) {
+				return at("allowedChanges", p, "is not a valid pattern")
+			}
+			// Evaris writes the verification harness as invaris.json; an agent
+			// may not supply it. A pattern that matches it is allowed only when
+			// protectedPaths also covers it, so source authorization still fails
+			// any agent change there (as in the deny-list form "**").
+			if c.Verification != nil && MatchPattern(p, HarnessName) && !MatchAny(c.ProtectedPaths, HarnessName) {
+				return at("allowedChanges", p, "matches "+HarnessName+"; add "+HarnessName+" to protectedPaths")
 			}
 		}
 		if v := c.Verification; v != nil && (!Relative(v.Harness) || v.TimeoutSeconds < 1 || v.TimeoutSeconds > 300 || !validVerification(v)) {

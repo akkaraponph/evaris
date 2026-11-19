@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -391,7 +392,7 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 					}
 					seenExclude[x] = true
 				}
-				if err = validDependencies(g, fixture, plan.OutputRoot); err != nil {
+				if err = validDependencies(g.ID, g.Dependencies, fixture, plan.OutputRoot); err != nil {
 					return
 				}
 			default:
@@ -430,6 +431,15 @@ func (r Repository) Load(ctx context.Context, p string) (plan application.Plan, 
 		if v := c.Verification; v != nil {
 			if fc.Harness, err = r.loadHarness(plan, c, fc.Files); err != nil {
 				return
+			}
+			if err = validDependencies("verification", v.Dependencies, filepath.Join(plan.ConfigDir, c.Fixture), plan.OutputRoot); err != nil {
+				return
+			}
+			for _, d := range v.Dependencies {
+				if d.Name == filepath.Base(v.Harness) || slices.ContainsFunc(v.Files, func(f string) bool { return strings.SplitN(v.FileRel(f), "/", 2)[0] == d.Name }) {
+					err = fail("INVALID_CONFIG", "verification: dependency "+d.Name+" collides with a verification file")
+					return
+				}
 			}
 			for _, name := range v.Files {
 				p := filepath.Join(plan.ConfigDir, name)
@@ -502,12 +512,12 @@ func (r Repository) loadHarness(plan application.Plan, c domain.Case, files doma
 		return nil, e
 	}
 	if c.Verification.Campaign() {
-		// Invaris validates the campaign; Evaris only requires its version.
-		var head struct {
-			Version string `json:"version"`
+		paths := make([]string, 0, len(c.Verification.Files))
+		for _, name := range c.Verification.Files {
+			paths = append(paths, c.Verification.FileRel(name))
 		}
-		if json.Unmarshal(b, &head) != nil || head.Version != "invaris.campaign/v1alpha1" {
-			return nil, fail("INVALID_CONFIG", "verification campaign must be invaris.campaign/v1alpha1")
+		if _, e := domain.CampaignEntries(b, paths); e != nil {
+			return nil, e
 		}
 		return b, nil
 	}
@@ -538,13 +548,13 @@ func validID(s string) bool {
 // 16, each a unique single-segment name linked from an absolute, clean
 // source directory outside the fixture and the evidence store. The source
 // must exist when the criterion is graded; it is not frozen.
-func validDependencies(g domain.Criterion, fixture, store string) error {
-	bad := func(why string) error { return fail("INVALID_CONFIG", g.ID+": "+why) }
-	if len(g.Dependencies) > 16 {
+func validDependencies(owner string, deps []domain.Dependency, fixture, store string) error {
+	bad := func(why string) error { return fail("INVALID_CONFIG", owner+": "+why) }
+	if len(deps) > 16 {
 		return bad("at most 16 dependencies")
 	}
 	seen := map[string]bool{}
-	for _, d := range g.Dependencies {
+	for _, d := range deps {
 		if !domain.Relative(d.Name) || strings.Contains(d.Name, "/") || d.Name == ".git" || d.Name == domain.HarnessName || d.Name == "workspace" || seen[d.Name] {
 			return bad("dependency name must be a unique single path segment")
 		}
@@ -553,7 +563,7 @@ func validDependencies(g domain.Criterion, fixture, store string) error {
 			return bad("dependency source must be an absolute, clean path")
 		}
 		if within(fixture, d.Source) || within(d.Source, fixture) || within(store, d.Source) || within(d.Source, store) {
-			return fail("PATH_UNSAFE", g.ID+": dependency source overlaps the fixture or the evidence store")
+			return fail("PATH_UNSAFE", owner+": dependency source overlaps the fixture or the evidence store")
 		}
 	}
 	return nil
