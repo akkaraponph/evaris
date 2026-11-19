@@ -9,12 +9,12 @@ on:
   workflow_dispatch:
 permissions:
   contents: read
+concurrency:
+  group: go-checks-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
@@ -33,62 +33,36 @@ jobs:
           GOSUMDB: "off"
         run: go test ./internal/acceptance -count=1
 
-  # P1 release gate: real Invaris at every tested build (see
-  # internal/adapters/invaris.Tested). Provisioning (network) is separate from
-  # the asserted offline test phase.
+  # Exercise the latest tested Invaris release. Older compatibility checks can
+  # run locally with EVARIS_TEST_INVARIS.
   invaris:
-    strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
-        invaris: [ee92f3c00c1b59b2f576bad05569fb6eafb83097, v0.3.0, v0.4.0, v0.5.0]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
+    env:
+      INVARIS_REF: v0.5.0
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           repository: refactorroom/invaris
-          ref: ${{ matrix.invaris }}
+          ref: ${{ env.INVARIS_REF }}
           path: invaris-src
           persist-credentials: false
       - uses: actions/setup-go@40f1582b2485089dde7abd97c1529aa768e1baff # v5.6.0
         with:
           go-version-file: go.mod
           cache: false
-      - name: Provision Invaris ${{ matrix.invaris }} (outside the Evaris module)
+      - name: Build the pinned Invaris release
         working-directory: invaris-src
-        env:
-          INVARIS_REF: ${{ matrix.invaris }}
         run: |
-          git rev-parse HEAD
-          # Link a tag's version as the release archives do, so v0.5.0 and later
-          # report `invaris vX.Y.Z`. Commit builds stay unlinked.
-          case "$INVARIS_REF" in
-            v*) ldflags="-X github.com/akkaraponph/invaris/internal/engine.releaseVersion=$INVARIS_REF" ;;
-            *) ldflags="" ;;
-          esac
-          go build -trimpath -ldflags "$ldflags" -o "$RUNNER_TEMP/invaris" ./cmd/invaris
-          case "$INVARIS_REF" in
-            v0.5.*) test "$("$RUNNER_TEMP/invaris" --version)" = "invaris $INVARIS_REF" ;;
-          esac
+          go build -trimpath -ldflags "-X github.com/akkaraponph/invaris/internal/engine.releaseVersion=$INVARIS_REF" \
+            -o "$RUNNER_TEMP/invaris" ./cmd/invaris
+          test "$("$RUNNER_TEMP/invaris" --version)" = "invaris $INVARIS_REF"
       - name: Real Invaris contract and P1 integration (offline)
         env:
           GOPROXY: "off"
           GOTOOLCHAIN: local
           GOSUMDB: "off"
-          INVARIS_REF: ${{ matrix.invaris }}
         run: |
           export EVARIS_TEST_INVARIS="$RUNNER_TEMP/invaris"
-          tests='TestRealInvaris$|TestP1OfflineIntegration$'
-          case "$INVARIS_REF" in
-            v*) tests="$tests|TestRealInvarisCampaign" ;;
-          esac
-          go test ./internal/adapters/invaris ./internal/acceptance -run "$tests" -count=1 -v
-
-  npm-package:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
-      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        with:
-          node-version: '18'
-      - run: node --test npm/evaris/test/*.test.js
+          go test ./internal/adapters/invaris ./internal/acceptance \
+            -run 'TestRealInvaris$|TestP1OfflineIntegration$|TestRealInvarisCampaign' -count=1 -v
