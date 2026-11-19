@@ -2,7 +2,7 @@
 
 ## Supported platforms
 
-| Item | Supported in 0.4.x |
+| Item | Supported in 0.5.x |
 | --- | --- |
 | Go toolchain | 1.27.4 or newer (minimum in `go.mod`) |
 | Operating systems | Linux and macOS, amd64 and arm64 |
@@ -37,6 +37,12 @@ an oracle or preparation that uses it; records without it are unchanged.
 `files`) that 0.3.0 refuses, writes `evaris.report/v1alpha2`, and writes
 `evaris.run/v1alpha2` for runs with a delivered revision.
 
+0.5.0 adds optional transcript import input and optional campaign summaries
+and input identity fields in evaluation and report records. Older strict
+readers may refuse records that carry the new fields. Keep original evidence
+stores when changing versions. Re-grade retained runs with 0.5.0 to produce
+the verifier identity needed for comparison.
+
 ## Version string
 
 `evaris --version` prints the version. Release builds set it with
@@ -51,7 +57,7 @@ From a clean checkout of the release tag, with Go 1.27.4:
 
 ```sh
 git status --porcelain   # must print nothing
-VERSION=v0.4.0
+VERSION=v0.5.0
 mkdir -p dist
 for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64; do
   GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 \

@@ -11,7 +11,7 @@ deterministic checks, independent review, and transparent evidence.
 
 ## Status
 
-Version 0.4.0 is the current release. It adds single-arm acceptance mode,
+Version 0.5.0 strengthens campaign evidence validation and adds Claude Code transcript import, explicit trial pairing, and verifier identity checks. Version 0.4.0 added single-arm acceptance mode,
 glob `allowedChanges` with `protectedPaths`, import from a Git commit, frozen
 reviewer files, per-criterion results in reports and `evaris show`, command
 `dependencies` and `limits.maxEntries`, and Invaris campaign verification with
@@ -54,7 +54,7 @@ written by newer releases. Pin an earlier npm version to roll back.
 ## Build and verify
 
 ```sh
-go install github.com/akkaraponph/evaris/cmd/evaris@v0.4.0
+go install github.com/akkaraponph/evaris/cmd/evaris@v0.5.0
 evaris --version
 
 mkdir -p .panda-suite/build                # or build from a checkout

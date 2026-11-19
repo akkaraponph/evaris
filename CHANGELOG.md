@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.5.0 - 2026-11-19
 
 Fixes found by evaluating a real NestJS and Next.js remaster with Evaris 0.4.0
 and Invaris 0.5.0.
